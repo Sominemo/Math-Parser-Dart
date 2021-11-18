@@ -72,7 +72,7 @@ Example for parsing a string and evaluating it with `x = 20`:
 
 ```dart
 final expression = MathNodeExpression.fromString(
-    '((2x)^(e^3 + 4)',
+    '(2x)^(e^3 + 4)',
 );
 print(expression.calc(20));
 

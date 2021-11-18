@@ -1,0 +1,15 @@
+include: package:lints/recommended.yaml
+analyzer:
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+  language:
+    strict-raw-types: true
+linter:
+  rules:
+    always_declare_return_types: true
+    prefer_single_quotes: true
+    unawaited_futures: true
+    package_api_docs: true
+    prefer_final_in_for_each: true
+    prefer_final_locals: true

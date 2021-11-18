@@ -23,8 +23,8 @@ extension MathNodeExpression on MathNode {
   /// 4. Unary minus (-) at the beginning of a block
   /// 5. Power (x^y)
   /// 6. Implicit multiplication (two MathNodes put near without operator between)
-  /// 6. Division (/) & Multiplication (*)
-  /// 7. Subtraction (-) & Addition (+)
+  /// 7. Division (/) & Multiplication (*)
+  /// 8. Subtraction (-) & Addition (+)
   static MathNode fromString(
     /// The expression to convert
     String expression, {

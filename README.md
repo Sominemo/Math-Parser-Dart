@@ -1,4 +1,5 @@
 # Math Parser for Dart
+
 Process math expressions, convert them to machine-readable
 form, and calculate them.
 
@@ -35,6 +36,25 @@ The library can parse general mathematical expressions strings
 and return them as a machine-readable `MathNode` using
 `MathNodeExpression.fromString` method.
 
+- Set [isMinusNegativeFunction] to `true` to interpret minus operator as a
+  sum of two values, right of which will be negative: X - Y turns to X + (-Y)
+- Set [isImplicitMultiplication] to `false` to disable implicit multiplication
+
+### Parse priority:
+
+1. Parentheses () []
+2. Variables: x, e, pi (π)
+3. Functions:
+   - sin, cos, tan (tg), cot (ctg)
+   - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
+   - ln (base=E), lg (base=2), log\[base\]\(x\)
+   - asin (arcsin), acos (arccos), atan (arctg), acot (arcctg)
+4. Unary minus (-) at the beginning of a block
+5. Power (x^y)
+6. Implicit multiplication (two MathNodes put near without operator between)
+7. Division (/) & Multiplication (\*)
+8. Subtraction (-) & Addition (+)
+
 ```dart
 MathNode fromString(
     /// The expression to convert
@@ -59,6 +79,7 @@ print(expression.calc(20));
 ```
 
 ## Other Features
+
 ### Numerical methods for Definite Integrals
 
 You can calculate a given node as a definite integral using
@@ -68,8 +89,8 @@ the same interface:
 ```dart
 num definiteIntegralByLeftRectangles(
     /// Precision
-    int n, 
-    num lowerLimit, 
+    int n,
+    num lowerLimit,
     num upperLimit,
 );
 

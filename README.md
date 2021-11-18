@@ -36,9 +36,9 @@ The library can parse general mathematical expressions strings
 and return them as a machine-readable `MathNode` using
 `MathNodeExpression.fromString` method.
 
-- Set [isMinusNegativeFunction] to `true` to interpret minus operator as a
+- Set `isMinusNegativeFunction` to `true` to interpret minus operator as a
   sum of two values, right of which will be negative: X - Y turns to X + (-Y)
-- Set [isImplicitMultiplication] to `false` to disable implicit multiplication
+- Set `isImplicitMultiplication` to `false` to disable implicit multiplication
 
 ### Parse priority:
 

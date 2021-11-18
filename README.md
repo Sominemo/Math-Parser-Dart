@@ -2,9 +2,7 @@
 Process math expressions, convert them to machine-readable
 form, and calculate them.
 
-## Features
-
-### Math Tree
+## Math Tree
 
 The library provides a family of `MathNode` classes, most of
 them have subnodes that are being calculated recursively.
@@ -17,7 +15,7 @@ There are such types of MathNode:
 
 All the child classes names begin with the family they belong to.
 
-### Evaluation
+## Evaluation
 
 You can evaluate a MathNode and its subnodes recursively by calling
 `MathNode.calc(num x)` and passing custom `x` variable value.
@@ -31,7 +29,7 @@ MathOperatorAddition(
 ).calc(5);
 ```
 
-### Parsing String to MathNode
+## Parsing String to MathNode
 
 The library can parse general mathematical expressions strings
 and return them as a machine-readable `MathNode` using
@@ -60,7 +58,8 @@ print(expression.calc(20));
 
 ```
 
-## Numerical methods for Definite Integrals
+## Other Features
+### Numerical methods for Definite Integrals
 
 You can calculate a given node as a definite integral using
 the `MathNodeDefiniteIntegral` extension. All methods have

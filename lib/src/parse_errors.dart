@@ -3,7 +3,7 @@ import 'package:math_parser/src/math_errors.dart';
 /// Math Parse Exception
 ///
 /// All sorts of errors related to parsing a string to [MathNode] used by
-/// [MathNodeExpression]. All actuall exceptions are being extended from this
+/// [MathNodeExpression]. All actual exceptions are being extended from this
 /// class.
 abstract class MathParseException extends MathException {
   /// Creates a new Math Parse Exception

@@ -19,15 +19,16 @@ All the child classes names begin with the family they belong to.
 ## Evaluation
 
 You can evaluate a MathNode and its subnodes recursively by calling
-`MathNode.calc(num x)` and passing custom `x` variable value.
+`MathNode.calc(MathVariableValues values)` and passing custom
+variable values.
 
 Example: Calculate `x + 3`, where `x = 5`.
 
 ```dart
 MathOperatorAddition(
-    MathFunctionX(),
+    MathVariable('x'),
     const MathValue(3),
-).calc(5);
+).calc(MathVariableValues.x(5));
 ```
 
 ## Parsing String to MathNode
@@ -43,8 +44,15 @@ and return them as a machine-readable `MathNode` using
 ### Parse priority:
 
 1. Parentheses () []
-2. Variables: x, e, pi (π)
-3. Functions:
+2. Variables: e, pi (π) and custom ones. `x` is being interpreted as a var
+   by default, but you can override this behavior with the variableNames
+   parameter. You can rewrite e and pi by defining it in variableNames and
+   mentioning it during the calc call.
+   First character must be a letter, others - letters, digits, or
+   underscore. Letters may be latin or Greek, both lower or capital case.
+   You can't use built-in function names like sin, cos, etc. Variable names
+   are case-sensitive
+3. Functions (case-sensitive):
    - sin, cos, tan (tg), cot (ctg)
    - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
    - ln (base=E), lg (base=2), log\[base\]\(x\)
@@ -65,18 +73,24 @@ MathNode fromString(
 
     /// Allows skipping the multiplication (*) operator
     bool isImplicitMultiplication = true,
+
+    /// Expressions which should be marked as variables
+    Set<String> variableNames = const {'x'},
   });
 ```
 
-Example for parsing a string and evaluating it with `x = 20`:
+Example for parsing a string and evaluating it with `x = 20`
+and `y = 5`:
 
 ```dart
 final expression = MathNodeExpression.fromString(
-    '(2x)^(e^3 + 4)',
+  '(2x)^(e^3 + 4) + y',
+).calc(
+  MathVariableValues({'x': 20, 'y': 5}),
 );
-print(expression.calc(20));
-
 ```
+
+More complicated work with variables is shown off in example.
 
 ## Other Features
 

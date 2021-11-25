@@ -1,3 +1,5 @@
+import 'package:math_parser/src/math_errors.dart';
+
 import 'math_node.dart';
 import 'parse_errors.dart';
 
@@ -10,12 +12,20 @@ extension MathNodeExpression on MathNode {
   /// Returns a single [MathNode]. Throws [MathException] if parsing fails.
   /// - Set [isMinusNegativeFunction] to `true` to interpret minus operator as a
   /// sum of two values, right of which will be negative: X - Y turns to X + (-Y)
-  /// - Set [isImplicitMultiplication] to `false` to disable implicit multiplication
+  /// - Set [isImplicitMultiplication] to `false` to disable implicit
+  /// multiplication
   ///
   /// Parse priority:
   /// 1. Parentheses () []
-  /// 2. Variables: x, e, pi (π)
-  /// 3. Functions:
+  /// 2. Variables: e, pi (π) and custom ones.
+  ///    `x` is being interpreted as a var by default, but you can override
+  ///    this behavior with the variableNames parameter. You can rewrite e and pi
+  ///    by defining it in variableNames and mentioning it during the calc call.
+  ///    First character must be a letter, others - letters, digits, or
+  ///    underscore. Letters may be latin or Greek, both lower or capital case.
+  ///    You can't use built-in function names like sin, cos, etc. Variable names
+  ///    are case-sensitive
+  /// 3. Functions (case-sensitive):
   ///    - sin, cos, tan (tg), cot (ctg)
   ///    - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
   ///    - ln (base=E), lg (base=2), log\[base\](x)
@@ -34,12 +44,30 @@ extension MathNodeExpression on MathNode {
 
     /// Allows skipping the multiplication (*) operator
     bool isImplicitMultiplication = true,
+
+    /// Expressions which should be marked as variables
+    Set<String> variableNames = const {'x'},
   }) {
     try {
+      for (final e in variableNames) {
+        _checkVariableName(e);
+      }
+
+      final variableNamesList = variableNames.toList();
+      variableNamesList.sort((a, b) => b.length.compareTo(a.length));
+
       return _parseMathString(
         expression,
         isMinusNegativeFunction: isMinusNegativeFunction,
         isImplicitMultiplication: isImplicitMultiplication,
+        variableNames: variableNames,
+        regexp: RegExp(
+          '(' +
+              variableNamesList.join('|') +
+              (variableNamesList.isNotEmpty ? '|' : '') +
+              r'(\d+(\.\d+)?)|\+|-|\^|/|\*|x|e|asin|acos|atan|acot|'
+                  r'arcsin|arccos|arctg|arcctg|cos|tan|tg|cot|ctg|sqrt|√|ln|log|lg|pi|π)',
+        ),
       );
     } on MathException {
       rethrow;
@@ -49,16 +77,45 @@ extension MathNodeExpression on MathNode {
   }
 }
 
-// Tokenizer regex
-final _regex = RegExp(
-  r'((\d+(\.\d+)?)|\+|-|\^|/|\*|x|e|asin|acos|atan|acot|'
-  r'arcsin|arccos|arctg|arcctg|cos|tan|tg|cot|ctg|sqrt|√|ln|log|lg|pi|π)',
-);
+const _bracketFuncs = [
+  'sin',
+  'cos',
+  'tan',
+  'tg',
+  'cot',
+  'ctg',
+  'sqrt',
+  '√',
+  'ln',
+  'lg',
+  'log',
+  'asin',
+  'acos',
+  'atan',
+  'acot',
+  'arcsin',
+  'arccos',
+  'arctg',
+  'arcctg'
+];
+
+void _checkVariableName(String name) {
+  if (!(RegExp(r'^[a-zA-Zα-ωΑ-Ω]([a-zA-Zα-ωΑ-Ω0-9_]+)?$').hasMatch(name)) ||
+      _bracketFuncs.contains(name)) {
+    throw InvalidVariableNameException(name);
+  }
+}
+
+const _priority1 = ['^'];
+const _priority2 = ['/', '*'];
+const _priority3 = ['-', '+'];
 
 MathNode _parseMathString(
   String s, {
   required bool isMinusNegativeFunction,
   required bool isImplicitMultiplication,
+  required Set<String> variableNames,
+  required RegExp regexp,
 }) {
   final List<_UnprocessedMathString> tempNodes = [];
 
@@ -134,10 +191,10 @@ MathNode _parseMathString(
   // Splitting string to tokens
   for (final item in tempNodes) {
     if (item is! _UnprocessedBrackets) {
-      final str = item.contents.replaceAll(' ', '').toLowerCase();
+      final str = item.contents.replaceAll(' ', '');
 
       int start = 0;
-      for (final match in _regex.allMatches(str, 0)) {
+      for (final match in regexp.allMatches(str, 0)) {
         var r = str.substring(start, match.start);
         if (r.isNotEmpty) nodes.add(_MathNodePartString(r));
         r = match[0]!;
@@ -159,47 +216,26 @@ MathNode _parseMathString(
         item.contents,
         isMinusNegativeFunction: isMinusNegativeFunction,
         isImplicitMultiplication: isImplicitMultiplication,
+        variableNames: variableNames,
+        regexp: regexp,
       )));
     }
   }
-
-  const bracketFuncs = [
-    'sin',
-    'cos',
-    'tan',
-    'tg',
-    'cot',
-    'ctg',
-    'sqrt',
-    '√',
-    'ln',
-    'lg',
-    'log',
-    'asin',
-    'acos',
-    'atan',
-    'acot',
-    'arcsin',
-    'arccos',
-    'arctg',
-    'arcctg'
-  ];
-
-  const priority1 = ['^'];
-  const priority2 = ['/', '*'];
-  const priority3 = ['-', '+'];
 
   // Looking for variables
   for (int i = nodes.length - 1; i >= 0; i--) {
     final item = nodes[i];
 
-    if (item.str == 'e') {
+    if (item is _MathNodePartString && variableNames.contains(item.str)) {
+      nodes.removeAt(i);
+      nodes.insert(i, _MathNodePartParsed(MathVariable(item.str)));
+    } else if (item.str == 'e') {
       const el = MathFunctionE();
 
       nodes.removeAt(i);
       nodes.insert(i, _MathNodePartParsed(el));
     } else if (item.str == 'x') {
-      const el = MathFunctionX();
+      const el = MathVariable('x');
 
       nodes.removeAt(i);
       nodes.insert(i, _MathNodePartParsed(el));
@@ -215,7 +251,7 @@ MathNode _parseMathString(
   for (int i = 0; i < nodes.length; i++) {
     final item = nodes[i];
 
-    if (bracketFuncs.contains(item.str)) {
+    if (_bracketFuncs.contains(item.str)) {
       if (i + 1 == nodes.length) {
         throw MissingFunctionArgumentListException(item.toString());
       }
@@ -226,6 +262,8 @@ MathNode _parseMathString(
           te.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       } else if (te is _MathNodePartParsed) {
         op = te;
@@ -307,6 +345,8 @@ MathNode _parseMathString(
           right.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
 
@@ -326,7 +366,7 @@ MathNode _parseMathString(
   for (int i = 0; i < nodes.length; i++) {
     final item = nodes[i];
 
-    if (priority1.contains(item.str)) {
+    if (_priority1.contains(item.str)) {
       if (i + 1 == nodes.length || i == 0) {
         throw MissingOperatorOperandException(item.toString());
       }
@@ -339,6 +379,8 @@ MathNode _parseMathString(
           left.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
       if (right is _MathNodePartString) {
@@ -346,6 +388,8 @@ MathNode _parseMathString(
           right.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
 
@@ -414,7 +458,7 @@ MathNode _parseMathString(
   for (int i = 0; i < nodes.length; i++) {
     final item = nodes[i];
 
-    if (priority2.contains(item.str)) {
+    if (_priority2.contains(item.str)) {
       if (i + 1 == nodes.length || i == 0) {
         throw MissingOperatorOperandException(item.toString());
       }
@@ -427,6 +471,8 @@ MathNode _parseMathString(
           left.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
       if (right is _MathNodePartString) {
@@ -434,6 +480,8 @@ MathNode _parseMathString(
           right.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
 
@@ -469,7 +517,7 @@ MathNode _parseMathString(
   for (int i = 0; i < nodes.length; i++) {
     final item = nodes[i];
 
-    if (priority3.contains(item.str)) {
+    if (_priority3.contains(item.str)) {
       if (i + 1 == nodes.length || i == 0) {
         throw MissingOperatorOperandException(item.toString());
       }
@@ -482,6 +530,8 @@ MathNode _parseMathString(
           left.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
       if (right is _MathNodePartString) {
@@ -489,6 +539,8 @@ MathNode _parseMathString(
           right.str,
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          regexp: regexp,
         ));
       }
 

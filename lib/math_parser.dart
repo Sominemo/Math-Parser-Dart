@@ -11,7 +11,7 @@
 ///
 /// void main() {
 ///   final expression = MathNodeExpression.fromString(
-///     '((2x)^(e^3 + 4)',
+///     '(2x)^(e^3 + 4)',
 ///   );
 ///   print(expression.calc(20));
 /// }
@@ -20,7 +20,5 @@ library math_parser;
 
 export 'src/math_node.dart';
 export 'src/parse.dart';
+export 'src/math_errors.dart';
 export 'src/parse_errors.dart';
-
-// Extensions
-export 'src/extensions/integrate.dart';

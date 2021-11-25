@@ -122,6 +122,6 @@ Iterable<num> _stepsAtMiddle(int n, num lowerLimit, num upperLimit) sync* {
 Iterable<num> _calculateMathNodeAtPoints(
     MathNode expression, Iterable<num> points) sync* {
   for (final point in points) {
-    yield expression.calc(point);
+    yield expression.calc(MathVariableValues.x(point));
   }
 }

@@ -1,5 +1,40 @@
 import 'dart:math' as math;
 
+import 'package:math_parser/src/math_errors.dart';
+
+/// Variables dictionary
+///
+/// The class must be passed to the [MathNode.calc] function.
+/// Map key value is the variable name, with a corresponding numeric value
+class MathVariableValues {
+  /// The map containing values
+  final Map<String, num> _values;
+
+  /// Get the variable value
+  ///
+  /// Throws UndefinedVariableException if variable is not set
+  num operator [](String variableName) {
+    final v = _values[variableName];
+    if (v is num) {
+      return v;
+    } else {
+      throw UndefinedVariableException(variableName);
+    }
+  }
+
+  /// Creates new variables dictionary
+  ///
+  /// - Use [MathVariableValues.x] if you only need to set x
+  /// - Use [MathVariableValues.none] if you are not using variables
+  const MathVariableValues(this._values);
+
+  /// Empty variables dictionary
+  static const MathVariableValues none = MathVariableValues({});
+
+  /// Creates a new x variable dictionary
+  factory MathVariableValues.x(num x) => MathVariableValues({'x': x});
+}
+
 /// Basic math expression unit
 ///
 /// Defines the [calc] method for every child to implement.
@@ -17,7 +52,7 @@ abstract class MathNode {
   /// constant with the isConst() method of the ExtensionConstant* extension
   /// family.
   num calc(
-    num x,
+    MathVariableValues values,
   );
 
   /// Creates a new math expression node
@@ -84,7 +119,7 @@ class MathValue extends MathNode {
   final num value;
 
   @override
-  num calc(num x) => value;
+  num calc(MathVariableValues values) => value;
 
   /// Creates a new constant value
   const MathValue(this.value);
@@ -93,13 +128,33 @@ class MathValue extends MathNode {
   String toString() => 'VALUE($value)';
 }
 
+/// A math variable
+///
+/// This value is being set from the [MathNode.calc] method and being passed to
+/// every subnode.
+///
+/// The variable is being replaced by the passed value during calculation.
+class MathVariable extends MathNode {
+  /// Designed variable name
+  final String variableName;
+
+  @override
+  num calc(MathVariableValues values) => values[variableName];
+
+  /// Creates a new variable which will be replaced by a corresponding value
+  const MathVariable(this.variableName);
+
+  @override
+  String toString() => 'VAR[$variableName]';
+}
+
 /// Addition operator (+)
 ///
 /// Both operands are addends. This expression evaluates to the sum of left and
 /// right operands.
 class MathOperatorAddition extends MathOperator {
   @override
-  num calc(num x) => left.calc(x) + right.calc(x);
+  num calc(MathVariableValues values) => left.calc(values) + right.calc(values);
 
   /// Creates a new addition operation
   const MathOperatorAddition(
@@ -120,7 +175,7 @@ class MathOperatorAddition extends MathOperator {
 /// the difference `left - right`
 class MathOperatorSubtraction extends MathOperator {
   @override
-  num calc(num x) => left.calc(x) - right.calc(x);
+  num calc(MathVariableValues values) => left.calc(values) - right.calc(values);
 
   /// Creates a new subtraction operation
   const MathOperatorSubtraction(
@@ -140,7 +195,7 @@ class MathOperatorSubtraction extends MathOperator {
 /// Both operands are both factors. This expression evaluates to the product
 class MathOperatorMultiplication extends MathOperator {
   @override
-  num calc(num x) => left.calc(x) * right.calc(x);
+  num calc(MathVariableValues values) => left.calc(values) * right.calc(values);
 
   /// Creates multiplication operator
   const MathOperatorMultiplication(MathNode left, MathNode right)
@@ -166,7 +221,7 @@ class MathOperatorMultiplication extends MathOperator {
 /// the quotient of these two.
 class MathOperatorDivision extends MathOperator {
   @override
-  num calc(num x) => left.calc(x) / right.calc(x);
+  num calc(MathVariableValues values) => left.calc(values) / right.calc(values);
 
   /// Creates division operator
   const MathOperatorDivision(MathNode left, MathNode right)
@@ -190,7 +245,7 @@ class MathOperatorDivision extends MathOperator {
 /// Returns the opposite value for the underlying node
 class MathFunctionNegative extends MathFunction {
   @override
-  num calc(num x) => -x1.calc(x);
+  num calc(MathVariableValues values) => -x1.calc(values);
 
   /// Creates a negative value
   const MathFunctionNegative(MathNode x) : super(x);
@@ -199,29 +254,13 @@ class MathFunctionNegative extends MathFunction {
   String toString() => '(-$x1)';
 }
 
-/// The X variable
-///
-/// This value is being passed from the [MathNode.calc] method to every subnode.
-///
-/// The function is being replaced by the passed value during calculation.
-class MathFunctionX extends MathFunction {
-  @override
-  num calc(num x) => x;
-
-  /// Creates the X value
-  const MathFunctionX() : super(const MathValue(1));
-
-  @override
-  String toString() => '[x]';
-}
-
 /// The Exponent in power constant
 ///
 /// Value that evaluates to the natural exponent in given number. The power
 /// of 1 is the default value.
 class MathFunctionE extends MathFunction {
   @override
-  num calc(num x) => math.exp(x1.calc(x));
+  num calc(MathVariableValues values) => math.exp(x1.calc(values));
 
   /// Creates an exponent value
   const MathFunctionE({MathNode x1 = const MathValue(1)}) : super(x1);
@@ -246,7 +285,8 @@ class MathValuePi extends MathValue {
 /// Evaluates to [left] in the power of [right].
 class MathOperatorPower extends MathOperator {
   @override
-  num calc(num x) => math.pow(left.calc(x), right.calc(x));
+  num calc(MathVariableValues values) =>
+      math.pow(left.calc(values), right.calc(values));
 
   /// Creates the power operation
   const MathOperatorPower(MathNode base, MathNode exponent)
@@ -261,7 +301,7 @@ class MathOperatorPower extends MathOperator {
 /// Evaluates to the value of sin at the point of [x1]
 class MathFunctionSin extends MathFunction {
   @override
-  num calc(num x) => math.sin(x1.calc(x));
+  num calc(MathVariableValues values) => math.sin(x1.calc(values));
 
   /// Creates the sin function
   const MathFunctionSin(MathNode x1) : super(x1);
@@ -275,7 +315,7 @@ class MathFunctionSin extends MathFunction {
 /// Evaluates to the value of cos at the point of [x1]
 class MathFunctionCos extends MathFunction {
   @override
-  num calc(num x) => math.cos(x1.calc(x));
+  num calc(MathVariableValues values) => math.cos(x1.calc(values));
 
   /// Creates the cos function
   const MathFunctionCos(MathNode x1) : super(x1);
@@ -289,7 +329,7 @@ class MathFunctionCos extends MathFunction {
 /// Evaluates to the value of tan at the point of [x1]
 class MathFunctionTan extends MathFunction {
   @override
-  num calc(num x) => math.tan(x1.calc(x));
+  num calc(MathVariableValues values) => math.tan(x1.calc(values));
 
   /// Creates the tan function
   const MathFunctionTan(MathNode x1) : super(x1);
@@ -303,7 +343,7 @@ class MathFunctionTan extends MathFunction {
 /// Evaluates to the value of cot at the point of [x1]
 class MathFunctionCot extends MathFunction {
   @override
-  num calc(num x) => 1 / math.tan(x1.calc(x));
+  num calc(MathVariableValues values) => 1 / math.tan(x1.calc(values));
 
   /// Creates the cot function
   const MathFunctionCot(MathNode x1) : super(x1);
@@ -317,7 +357,7 @@ class MathFunctionCot extends MathFunction {
 /// Evaluates to the value of asin at the point of [x1]
 class MathFunctionAsin extends MathFunction {
   @override
-  num calc(num x) => math.asin(x1.calc(x));
+  num calc(MathVariableValues values) => math.asin(x1.calc(values));
 
   /// Creates the asin function
   const MathFunctionAsin(MathNode x1) : super(x1);
@@ -331,7 +371,7 @@ class MathFunctionAsin extends MathFunction {
 /// Evaluates to the value of acos at the point of [x1]
 class MathFunctionAcos extends MathFunction {
   @override
-  num calc(num x) => math.acos(x1.calc(x));
+  num calc(MathVariableValues values) => math.acos(x1.calc(values));
 
   /// Creates the acos function
   const MathFunctionAcos(MathNode x1) : super(x1);
@@ -345,7 +385,7 @@ class MathFunctionAcos extends MathFunction {
 /// Evaluates to the value of atan at the point of [x1]
 class MathFunctionAtan extends MathFunction {
   @override
-  num calc(num x) => math.atan(x1.calc(x));
+  num calc(MathVariableValues values) => math.atan(x1.calc(values));
 
   /// Creates the atan function
   const MathFunctionAtan(MathNode x1) : super(x1);
@@ -359,7 +399,7 @@ class MathFunctionAtan extends MathFunction {
 /// Evaluates to the value of acot at the point of [x1]
 class MathFunctionAcot extends MathFunction {
   @override
-  num calc(num x) => math.atan(1 / x1.calc(x));
+  num calc(MathVariableValues values) => math.atan(1 / x1.calc(values));
 
   /// Creates the acot function
   const MathFunctionAcot(MathNode x1) : super(x1);
@@ -375,7 +415,8 @@ class MathFunctionAcot extends MathFunction {
 /// By default it's natural logarithm (base equals 10)
 class MathFunctionLog extends MathFunctionWithTwoArguments {
   @override
-  num calc(num x) => math.log(x1.calc(x)) / math.log(x2.calc(x));
+  num calc(MathVariableValues values) =>
+      math.log(x1.calc(values)) / math.log(x2.calc(values));
 
   /// Creates the log function
   const MathFunctionLog(MathNode x1, {MathNode x2 = const MathValue(10)})

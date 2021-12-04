@@ -3,6 +3,11 @@
 Process math expressions, convert them to machine-readable
 form, and calculate them.
 
+This package is aimed to help you to work with formulas, 
+parts of equations and other forms of simple math 
+expressions in your projects. This package supports custom
+variables too.
+
 ## Math Tree
 
 The library provides a family of `MathNode` classes, most of
@@ -84,9 +89,9 @@ and `y = 5`:
 
 ```dart
 final expression = MathNodeExpression.fromString(
-  '(2x)^(e^3 + 4) + y',
+  '(2x)^(e^3 + 4) + x',
 ).calc(
-  MathVariableValues({'x': 20, 'y': 5}),
+  MathVariableValues({'x': 20}),
 );
 ```
 

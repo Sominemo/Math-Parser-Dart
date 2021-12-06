@@ -3,21 +3,26 @@
 Process math expressions, convert them to machine-readable
 form, and calculate them.
 
-This package is aimed to help you to work with formulas, 
-parts of equations and other forms of simple math 
+This package is aimed to help you to work with formulas,
+parts of equations and other forms of simple math
 expressions in your projects. This package supports custom
 variables too.
 
 ## Math Tree
 
-The library provides a family of `MathNode` classes, most of
-them have subnodes that are being calculated recursively.
+The library provides a family of `MathExpression` and
+`MathNode` classes, most of them have subnodes that are being
+calculated recursively.
 
 There are such types of MathNode:
 
 - `MathFunction` (and `MathFunctionWithTwoArguments` subclass)
 - `MathValue`
 - `MathOperator`
+
+Types of `MathExpression`:
+
+- `MathComparison`
 
 All the child classes names begin with the family they belong to.
 
@@ -35,6 +40,9 @@ MathOperatorAddition(
     const MathValue(3),
 ).calc(MathVariableValues.x(5));
 ```
+
+You can also evaluate `MathExpression.calc`, but this method
+doesn't guarantee numeric result, so it may return false.
 
 ## Parsing String to MathNode
 
@@ -96,6 +104,31 @@ final expression = MathNodeExpression.fromString(
 ```
 
 More complicated work with variables is shown off in example.
+
+You can also parse equations with `MathNodeExpression.fromStringExtended`,
+refer to example for this.
+
+### Detect used variable names
+
+You can detect possible variable names used in a string math expression
+using `MathNodeExpression.getPotentialVariableNames`.
+
+Detecting variable names works properly only when implicit multiplication
+is disabled.
+
+```dart
+final expr = '2*a+b';
+final vars = MathNodeExpression.getPotentialVariableNames(
+  expr,
+  hideBuiltIns: true,
+);
+
+MathNodeExpression.fromString(
+  expr,
+  variableNames: vars,
+  isImplicitMultiplication: false,
+);
+```
 
 ## Other Features
 

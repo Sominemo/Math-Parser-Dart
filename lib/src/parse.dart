@@ -6,7 +6,7 @@ import 'parse_errors.dart';
 /// Math Expression Parser Extension
 ///
 /// Adds [fromString] method that lets you convert String to MathNode
-extension MathNodeExpression on MathNode {
+extension MathNodeExpression on MathExpression {
   /// Parse MathNode from String
   ///
   /// Returns a single [MathNode]. Throws [MathException] if parsing fails.
@@ -75,9 +75,169 @@ extension MathNodeExpression on MathNode {
       throw ParsingFailedException(e);
     }
   }
+
+  /// Create a new MathExpression from String
+  ///
+  /// Compared to [fromString], this method also supports creating
+  /// [MathExpression] entities, like [MathComparisonEquation],
+  /// [MathComparisonGreater], [MathComparisonLess]. This means, this method
+  /// supports =, < and > operators.
+  static MathExpression fromStringExtended(
+    /// The expression to convert
+    String expression, {
+
+    /// Converts all X - Y to X + (-Y)
+    bool isMinusNegativeFunction = false,
+
+    /// Allows skipping the multiplication (*) operator
+    bool isImplicitMultiplication = true,
+
+    /// Expressions which should be marked as variables
+    Set<String> variableNames = const {'x'},
+  }) {
+    final nodes = <_MathExpressionPart>[];
+
+    int start = 0;
+    for (final match in RegExp('[=<>]').allMatches(expression, 0)) {
+      var r = expression.substring(start, match.start);
+      if (r.isNotEmpty) nodes.add(_MathExpressionPartString(r));
+      r = match[0]!;
+      if (r.isNotEmpty) {
+        nodes.add(_MathExpressionPartString(r));
+      }
+      start = match.end;
+    }
+
+    final r = expression.substring(start);
+    if (r.isNotEmpty) nodes.add(_MathExpressionPartString(r));
+
+    for (var i = 0; i < nodes.length; i++) {
+      final token = nodes[i];
+      if (token is! _MathExpressionPartString ||
+          !RegExp(r'^[=<>]$').hasMatch(token.str)) continue;
+
+      if (i == 0 || i == nodes.length - 1) {
+        throw MissingOperatorOperandException(token.str);
+      }
+
+      final left = nodes[i - 1];
+      late final _MathExpressionPartParsed leftParsed;
+
+      if (left is _MathExpressionPartString) {
+        leftParsed = _MathExpressionPartParsed(
+          fromString(
+            left.str,
+            isMinusNegativeFunction: isImplicitMultiplication,
+            isImplicitMultiplication: isImplicitMultiplication,
+            variableNames: variableNames,
+          ),
+        );
+      } else if (left is _MathExpressionPartParsed) {
+        leftParsed = left;
+      } else {
+        throw CantProcessExpressionException([left]);
+      }
+
+      final right = nodes[i + 1];
+      late final _MathExpressionPartParsed rightParsed;
+
+      if (right is _MathExpressionPartString) {
+        rightParsed = _MathExpressionPartParsed(
+          fromString(
+            right.str,
+            isMinusNegativeFunction: isImplicitMultiplication,
+            isImplicitMultiplication: isImplicitMultiplication,
+            variableNames: variableNames,
+          ),
+        );
+      } else if (right is _MathExpressionPartParsed) {
+        rightParsed = right;
+      } else {
+        throw CantProcessExpressionException([right]);
+      }
+
+      nodes.removeAt(i - 1);
+      nodes.removeAt(i - 1);
+      nodes.removeAt(i - 1);
+
+      late final MathExpression result;
+
+      if (token.str == '=') {
+        result = MathComparisonEquation(leftParsed.node, rightParsed.node);
+      } else if (token.str == '>') {
+        result = MathComparisonGreater(leftParsed.node, rightParsed.node);
+      } else if (token.str == '<') {
+        result = MathComparisonLess(leftParsed.node, rightParsed.node);
+      } else {
+        throw UnknownOperationException(token.str);
+      }
+
+      nodes.insert(i - 1, _MathExpressionPartParsed(result));
+      i -= 2;
+    }
+
+    if (nodes.length == 1) {
+      if (nodes[0] is _MathExpressionPartString) {
+        return fromString(
+          nodes[0].str!,
+          isMinusNegativeFunction: isImplicitMultiplication,
+          isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+        );
+      } else if (nodes[0] is _MathExpressionPartParsed) {
+        return nodes[0].node!;
+      }
+    }
+
+    throw CantProcessExpressionException(nodes);
+  }
+
+  /// Detect potential variable names
+  ///
+  /// This method analyzes the given string and assumes if there are
+  /// any variable names. This method doesn't give you a 100% guarantee
+  /// if you use implicit multiplication, since there's no way to be sure if an
+  /// unprocessed substring is a whole name or multiple variables being
+  /// multiplied. Because of that, this method assumes you don't use implicit
+  /// multiplication.
+  ///
+  /// Returns a list of strings of potential undeclared variable names.
+  ///
+  /// Use `hideBuiltIns` if you want to remove built-in variables like `e` and
+  /// `pi` from result. Can be useful if you are going to prompt user to enter the
+  /// values.
+  static Set<String> getPotentialVariableNames(
+    String expression, {
+    bool hideBuiltIns = false,
+  }) {
+    return RegExp(_variableNameBaseRegExp)
+        .allMatches(expression)
+        .map((element) => element.group(0)!)
+        .where((element) {
+      return !(_bracketFuncs.contains(element)) &&
+          !(hideBuiltIns && _variableBuiltIns.contains(element));
+    }).toSet();
+  }
+
+  /// Built-in variables
+  ///
+  /// Math parser has some basic variables predefined, like `e` and `pi`. This
+  /// field lets you get a lit of these variables. This list is used to filter out
+  /// variables in [getPotentialVariableNames].
+  static Set<String> get builtInVariables => _variableBuiltIns;
+
+  /// Validate variable name
+  ///
+  /// Returns `true` if parser can interpret given token as a variable during
+  /// parsing.
+  static bool isVariableNameValid(String name) {
+    return _validateVariableName(name);
+  }
 }
 
-const _bracketFuncs = [
+const _variableBuiltIns = {'e', 'pi', 'π'};
+
+const _bracketFuncs = {
   'sin',
   'cos',
   'tan',
@@ -97,18 +257,24 @@ const _bracketFuncs = [
   'arccos',
   'arctg',
   'arcctg'
-];
+};
+
+final _variableNameBaseRegExp = '[a-zA-Zα-ωΑ-Ω]([a-zA-Zα-ωΑ-Ω0-9_]+)?';
+
+bool _validateVariableName(String name) {
+  return !(RegExp('^$_variableNameBaseRegExp\$').hasMatch(name)) &&
+      !_bracketFuncs.contains(name);
+}
 
 void _checkVariableName(String name) {
-  if (!(RegExp(r'^[a-zA-Zα-ωΑ-Ω]([a-zA-Zα-ωΑ-Ω0-9_]+)?$').hasMatch(name)) ||
-      _bracketFuncs.contains(name)) {
+  if (!_validateVariableName(name)) {
     throw InvalidVariableNameException(name);
   }
 }
 
-const _priority1 = ['^'];
-const _priority2 = ['/', '*'];
-const _priority3 = ['-', '+'];
+const _priority1 = {'^'};
+const _priority2 = {'/', '*'};
+const _priority3 = {'-', '+'};
 
 MathNode _parseMathString(
   String s, {
@@ -231,11 +397,6 @@ MathNode _parseMathString(
       nodes.insert(i, _MathNodePartParsed(MathVariable(item.str)));
     } else if (item.str == 'e') {
       const el = MathFunctionE();
-
-      nodes.removeAt(i);
-      nodes.insert(i, _MathNodePartParsed(el));
-    } else if (item.str == 'x') {
-      const el = MathVariable('x');
 
       nodes.removeAt(i);
       nodes.insert(i, _MathNodePartParsed(el));
@@ -581,7 +742,7 @@ MathNode _parseMathString(
 
   // If some nodes were left unprocessed - error
   if (nodes.length != 1 || nodes[0] is! _MathNodePartParsed) {
-    throw CantProcessExpressionException(nodes.join(', '));
+    throw CantProcessExpressionException(nodes);
   }
 
   return (nodes[0] as _MathNodePartParsed).node;
@@ -647,6 +808,37 @@ class _MathNodePartParsed implements _MathNodePart {
   final MathNode node;
 
   const _MathNodePartParsed(this.node);
+
+  @override
+  String toString() => node.toString();
+}
+
+abstract class _MathExpressionPart {
+  final String? str;
+  final MathExpression? node;
+
+  _MathExpressionPart(this.str, this.node);
+}
+
+class _MathExpressionPartString implements _MathExpressionPart {
+  @override
+  final String str;
+  @override
+  final MathExpression? node = null;
+
+  const _MathExpressionPartString(this.str);
+
+  @override
+  String toString() => str.toString();
+}
+
+class _MathExpressionPartParsed implements _MathExpressionPart {
+  @override
+  final String? str = null;
+  @override
+  final MathExpression node;
+
+  const _MathExpressionPartParsed(this.node);
 
   @override
   String toString() => node.toString();

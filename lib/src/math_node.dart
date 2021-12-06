@@ -35,10 +35,37 @@ class MathVariableValues {
   factory MathVariableValues.x(num x) => MathVariableValues({'x': x});
 }
 
+/// Any Math-related object
+///
+/// Main implementers are decedents of [MathNode] and [MathComparison] classes.
+abstract class MathExpression {
+  /// Math expression constructor
+  const MathExpression();
+
+  /// Generalized value for all sorts of math expressions, but result is not
+  /// guaranteed.
+  ///
+  /// Tries to return the most appropriate result for given object type.
+  /// For example, when working with [MathNode], it always returns its
+  /// [MathNode.calc] result. For [MathComparisonEquation], a value of subnodes is
+  /// being returned but only if they equal, else null will be returned.
+  /// For [MathComparisonGreater] and [MathComparisonLess] returns a greater or a
+  /// smaller value accordingly even if the expression isn't true.
+  num? calc(
+    MathVariableValues values,
+  );
+
+  /// Get mentioned variables that are required to evaluate the expression
+  ///
+  /// Searches the math tree for any [MathVariable] instances and returns a set
+  /// of their names.
+  Set<String> getUsedVariables();
+}
+
 /// Basic math expression unit
 ///
 /// Defines the [calc] method for every child to implement.
-abstract class MathNode {
+abstract class MathNode extends MathExpression {
   /// Evaluate the expression
   ///
   /// Will calculate the value of the given expression using the given [x] value
@@ -51,6 +78,7 @@ abstract class MathNode {
   /// You can check an expression or its parts (subnodes) for being
   /// constant with the isConst() method of the ExtensionConstant* extension
   /// family.
+  @override
   num calc(
     MathVariableValues values,
   );
@@ -72,6 +100,11 @@ abstract class MathFunction implements MathNode {
   ///
   /// The first and only parameters is supposed to be function's argument
   const MathFunction(this.x1);
+
+  @override
+  Set<String> getUsedVariables() {
+    return x1.getUsedVariables();
+  }
 }
 
 /// Mathematical function with two arguments
@@ -94,6 +127,11 @@ abstract class MathFunctionWithTwoArguments implements MathFunction {
   ///
   /// The parameters are supposed to be function's arguments
   const MathFunctionWithTwoArguments(this.x1, this.x2);
+
+  @override
+  Set<String> getUsedVariables() {
+    return {...x1.getUsedVariables(), ...x2.getUsedVariables()};
+  }
 }
 
 /// Mathematical operator
@@ -109,6 +147,11 @@ abstract class MathOperator implements MathNode {
 
   /// Creates a new mathematical operator
   const MathOperator(this.left, this.right);
+
+  @override
+  Set<String> getUsedVariables() {
+    return {...left.getUsedVariables(), ...right.getUsedVariables()};
+  }
 }
 
 /// Constant value
@@ -126,6 +169,11 @@ class MathValue extends MathNode {
 
   @override
   String toString() => 'VALUE($value)';
+
+  @override
+  Set<String> getUsedVariables() {
+    return {};
+  }
 }
 
 /// A math variable
@@ -146,6 +194,11 @@ class MathVariable extends MathNode {
 
   @override
   String toString() => 'VAR[$variableName]';
+
+  @override
+  Set<String> getUsedVariables() {
+    return {variableName};
+  }
 }
 
 /// Addition operator (+)
@@ -436,4 +489,97 @@ class MathFunctionLn extends MathFunctionLog {
 
   @override
   String toString() => '[LOG($x1, E]';
+}
+
+/// A parent class for comparisons
+abstract class MathComparison extends MathExpression {
+  /// Left comparable
+  final MathExpression left;
+
+  /// Right comparable
+  final MathExpression right;
+
+  /// Creates a new comparable
+  const MathComparison(this.left, this.right);
+
+  @override
+  Set<String> getUsedVariables() {
+    return {...left.getUsedVariables(), ...right.getUsedVariables()};
+  }
+}
+
+/// Equation
+///
+/// The equation class which can contain multiple MathExpressions to be compared
+class MathComparisonEquation extends MathComparison {
+  @override
+  num? calc(MathVariableValues values) {
+    final leftResult = left.calc(values);
+    final rightResult = right.calc(values);
+
+    if (leftResult == rightResult) return leftResult;
+
+    return null;
+  }
+
+  @override
+  String toString() {
+    return '[$left = $right]';
+  }
+
+  /// Creates an equation
+  const MathComparisonEquation(MathExpression left, MathExpression right)
+      : super(left, right);
+}
+
+/// If Greater Comparison
+///
+/// Looks for a bigger MathExpression
+class MathComparisonGreater extends MathComparison {
+  @override
+  num? calc(MathVariableValues values) {
+    final leftResult = left.calc(values);
+    if (leftResult == null) return null;
+
+    final rightResult = right.calc(values);
+    if (rightResult == null) return null;
+
+    if (leftResult > rightResult) return leftResult;
+    return rightResult;
+  }
+
+  @override
+  String toString() {
+    return '[$left > $right]';
+  }
+
+  /// Creates a greater comparison
+  const MathComparisonGreater(MathExpression left, MathExpression right)
+      : super(left, right);
+}
+
+/// If Greater Comparison
+///
+/// Looks for a bigger MathExpression
+class MathComparisonLess extends MathComparison {
+  @override
+  num? calc(MathVariableValues values) {
+    final leftResult = left.calc(values);
+    if (leftResult == null) return null;
+
+    final rightResult = right.calc(values);
+    if (rightResult == null) return null;
+
+    if (leftResult < rightResult) return leftResult;
+    return rightResult;
+  }
+
+  @override
+  String toString() {
+    return '[$left < $right]';
+  }
+
+  /// Creates a less comparison
+  const MathComparisonLess(MathExpression left, MathExpression right)
+      : super(left, right);
 }

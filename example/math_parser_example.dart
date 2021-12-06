@@ -11,10 +11,44 @@ void main() {
   // Display the parsed expression in human-readable form
   print(expression);
 
-  // Evaluate the expression with `x = 20`, `y = 2`, `theta = 1/2`
+  // List all used variables
+  print(expression.getUsedVariables());
+
+  // Evaluate the expression with `x = 20`, `y = 2`, `theta = 1/2`, 'x_1 = 3'
   // and display result
-  print(expression.calc(
-    MathVariableValues({'x': 20, 'y': 2, 'Θ': 0.5, 'x_1': 3}),
+  print(
+    expression.calc(
+      MathVariableValues({'x': 20, 'y': 2, 'Θ': 0.5, 'x_1': 3}),
+    ),
+  );
+
+  // Compare expressions
+  print(
+    MathNodeExpression.fromStringExtended('2x-x=8x/2x-x=2').calc(
+      MathVariableValues.x(2),
+    ),
+  );
+
+  // Detect possible variable names
+  final stringExpression =
+      '((2*x)^(e^3 + 4) + cos(3)*x) / log[x_1*2 + 3^2*e](2 + (3*y)^2)^5 * (2 + y)*(x^2 + 3) + arcctg(Θ)';
+
+  // Remove built-in variables if you are going to ask a user to enter the
+  // values
+  final vars = MathNodeExpression.getPotentialVariableNames(
+    stringExpression,
+    hideBuiltIns: true,
+  );
+
+// Show detected variables
+  print(vars);
+
+  // Use the vars to parse the math expression
+  // Variable detection works properly only with implicit multiplication
+  print(MathNodeExpression.fromString(
+    stringExpression,
+    variableNames: vars,
+    isImplicitMultiplication: false,
   ));
 }
 

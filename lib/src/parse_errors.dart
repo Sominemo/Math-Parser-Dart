@@ -76,15 +76,16 @@ class CantProcessExpressionException extends MathParseException {
   @override
   String toString() {
     return 'CantProcessExpressionException: '
-        'Some parts of the expression were left unprocessed: $parts.'
-        '\nThis often happens if you used an undefined variable  in '
+        'Some parts of the expression were left unprocessed: '
+        '${parts.map((p) => p.toString()).join(', ')}.'
+        '\nThis often happens if you used an undefined variable in '
         'variableNames parameter of the parse function or you haven\'t '
         'specified the multiplication operator explicitly and don\'t have '
         'isImplicitMultiplication turned on';
   }
 
   /// The unprocessed parts
-  final String parts;
+  final List<Object> parts;
 
   /// Creates a new Cant Process Expression Exception
   const CantProcessExpressionException(this.parts);
@@ -104,7 +105,7 @@ class ParsingFailedException extends MathParseException {
   /// The unprocessed parts
   final Object error;
 
-  /// Creates a new  Parsing Failed Exception
+  /// Creates a new Parsing Failed Exception
   const ParsingFailedException(this.error);
 }
 

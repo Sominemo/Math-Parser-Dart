@@ -42,7 +42,7 @@ MathOperatorAddition(
 ```
 
 You can also evaluate `MathExpression.calc`, but this method
-doesn't guarantee numeric result, so it may return false.
+doesn't guarantee numeric result, so it may return null.
 
 ## Parsing String to MathNode
 

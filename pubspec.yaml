@@ -1,7 +1,7 @@
 name: math_parser
 description: Process math expressions, like formulas or parts of equations, convert them to machine-readable 
   form, and calculate them. 
-version: 1.3.0
+version: 1.3.1
 homepage: https://github.com/Sominemo/Math-Parser-Dart
 
 environment:

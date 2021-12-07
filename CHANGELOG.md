@@ -1,3 +1,6 @@
+# 1.3.1
+- Variable validation fix
+
 # 1.3.0
 
 ## Math Tree

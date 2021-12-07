@@ -65,7 +65,7 @@ extension MathNodeExpression on MathExpression {
           '(' +
               variableNamesList.join('|') +
               (variableNamesList.isNotEmpty ? '|' : '') +
-              r'(\d+(\.\d+)?)|\+|-|\^|/|\*|x|e|asin|acos|atan|acot|'
+              r'(\d+(\.\d+)?)|\+|-|\^|/|\*|e|asin|acos|atan|acot|'
                   r'arcsin|arccos|arctg|arcctg|cos|tan|tg|cot|ctg|sqrt|√|ln|log|lg|pi|π)',
         ),
       );
@@ -262,7 +262,7 @@ const _bracketFuncs = {
 final _variableNameBaseRegExp = '[a-zA-Zα-ωΑ-Ω]([a-zA-Zα-ωΑ-Ω0-9_]+)?';
 
 bool _validateVariableName(String name) {
-  return !(RegExp('^$_variableNameBaseRegExp\$').hasMatch(name)) &&
+  return (RegExp('^$_variableNameBaseRegExp\$').hasMatch(name)) &&
       !_bracketFuncs.contains(name);
 }
 

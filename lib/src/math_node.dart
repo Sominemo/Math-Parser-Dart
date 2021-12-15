@@ -52,14 +52,21 @@ abstract class MathExpression {
   /// For [MathComparisonGreater] and [MathComparisonLess] returns a greater or a
   /// smaller value accordingly even if the expression isn't true.
   num? calc(
-    MathVariableValues values,
-  );
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions,
+  });
 
   /// Get mentioned variables that are required to evaluate the expression
   ///
   /// Searches the math tree for any [MathVariable] instances and returns a set
   /// of their names.
   Set<String> getUsedVariables();
+
+  /// Get mentioned custom defined functions that are required to evaluate the expression
+  ///
+  /// Searches the math tree for any [MathFunctionFreeform] instances and returns a set
+  /// of their definitions.
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions();
 }
 
 /// Basic math expression unit
@@ -80,8 +87,9 @@ abstract class MathNode extends MathExpression {
   /// family.
   @override
   num calc(
-    MathVariableValues values,
-  );
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions,
+  });
 
   /// Creates a new math expression node
   const MathNode();
@@ -104,6 +112,11 @@ abstract class MathFunction implements MathNode {
   @override
   Set<String> getUsedVariables() {
     return x1.getUsedVariables();
+  }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
+    return x1.getUsedFreeformFunctions();
   }
 }
 
@@ -132,6 +145,11 @@ abstract class MathFunctionWithTwoArguments implements MathFunction {
   Set<String> getUsedVariables() {
     return {...x1.getUsedVariables(), ...x2.getUsedVariables()};
   }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
+    return {...x1.getUsedFreeformFunctions(), ...x2.getUsedFreeformFunctions()};
+  }
 }
 
 /// Mathematical operator
@@ -152,6 +170,14 @@ abstract class MathOperator implements MathNode {
   Set<String> getUsedVariables() {
     return {...left.getUsedVariables(), ...right.getUsedVariables()};
   }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
+    return {
+      ...left.getUsedFreeformFunctions(),
+      ...right.getUsedFreeformFunctions()
+    };
+  }
 }
 
 /// Constant value
@@ -162,7 +188,12 @@ class MathValue extends MathNode {
   final num value;
 
   @override
-  num calc(MathVariableValues values) => value;
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      value;
 
   /// Creates a new constant value
   const MathValue(this.value);
@@ -172,6 +203,11 @@ class MathValue extends MathNode {
 
   @override
   Set<String> getUsedVariables() {
+    return {};
+  }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
     return {};
   }
 }
@@ -187,7 +223,12 @@ class MathVariable extends MathNode {
   final String variableName;
 
   @override
-  num calc(MathVariableValues values) => values[variableName];
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      values[variableName];
 
   /// Creates a new variable which will be replaced by a corresponding value
   const MathVariable(this.variableName);
@@ -199,6 +240,72 @@ class MathVariable extends MathNode {
   Set<String> getUsedVariables() {
     return {variableName};
   }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
+    return {};
+  }
+}
+
+/// Freeform function
+///
+/// Allows to define a custom function
+///
+/// Despite being a function, does not extend [MathFunction]
+class MathFunctionFreeform extends MathNode {
+  /// Function definition
+  final MathDefinitionFunctionFreeform definition;
+
+  /// Arguments list
+  final List<MathNode> arguments;
+
+  /// Creates a new function definition
+  const MathFunctionFreeform(this.definition, this.arguments);
+
+  @override
+  Set<String> getUsedVariables() {
+    return {
+      for (var l in arguments.map<Set<String>>((e) => e.getUsedVariables()))
+        ...l
+    };
+  }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
+    return {
+      definition,
+      for (var l in arguments.map<Set<MathDefinitionFunctionFreeform>>(
+          (e) => e.getUsedFreeformFunctions()))
+        ...l
+    };
+  }
+
+  @override
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) {
+    final d = definition;
+
+    if (d is MathDefinitionFunctionFreeformImplemented) {
+      return d.calc(
+        arguments,
+        values,
+        customFunctions: customFunctions,
+      );
+    }
+
+    return customFunctions[d].calc(
+      arguments,
+      values,
+      customFunctions: customFunctions,
+    );
+  }
+
+  @override
+  String toString() =>
+      'FUNC:${definition.name}(${definition.minArgumentsCount}:${definition.maxArgumentsCount})[${arguments.join(', ')}]';
 }
 
 /// Addition operator (+)
@@ -207,7 +314,19 @@ class MathVariable extends MathNode {
 /// right operands.
 class MathOperatorAddition extends MathOperator {
   @override
-  num calc(MathVariableValues values) => left.calc(values) + right.calc(values);
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      left.calc(
+        values,
+        customFunctions: customFunctions,
+      ) +
+      right.calc(
+        values,
+        customFunctions: customFunctions,
+      );
 
   /// Creates a new addition operation
   const MathOperatorAddition(
@@ -228,7 +347,19 @@ class MathOperatorAddition extends MathOperator {
 /// the difference `left - right`
 class MathOperatorSubtraction extends MathOperator {
   @override
-  num calc(MathVariableValues values) => left.calc(values) - right.calc(values);
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      left.calc(
+        values,
+        customFunctions: customFunctions,
+      ) -
+      right.calc(
+        values,
+        customFunctions: customFunctions,
+      );
 
   /// Creates a new subtraction operation
   const MathOperatorSubtraction(
@@ -248,7 +379,19 @@ class MathOperatorSubtraction extends MathOperator {
 /// Both operands are both factors. This expression evaluates to the product
 class MathOperatorMultiplication extends MathOperator {
   @override
-  num calc(MathVariableValues values) => left.calc(values) * right.calc(values);
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      left.calc(
+        values,
+        customFunctions: customFunctions,
+      ) *
+      right.calc(
+        values,
+        customFunctions: customFunctions,
+      );
 
   /// Creates multiplication operator
   const MathOperatorMultiplication(MathNode left, MathNode right)
@@ -274,7 +417,19 @@ class MathOperatorMultiplication extends MathOperator {
 /// the quotient of these two.
 class MathOperatorDivision extends MathOperator {
   @override
-  num calc(MathVariableValues values) => left.calc(values) / right.calc(values);
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      left.calc(
+        values,
+        customFunctions: customFunctions,
+      ) /
+      right.calc(
+        values,
+        customFunctions: customFunctions,
+      );
 
   /// Creates division operator
   const MathOperatorDivision(MathNode left, MathNode right)
@@ -298,7 +453,15 @@ class MathOperatorDivision extends MathOperator {
 /// Returns the opposite value for the underlying node
 class MathFunctionNegative extends MathFunction {
   @override
-  num calc(MathVariableValues values) => -x1.calc(values);
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      -x1.calc(
+        values,
+        customFunctions: customFunctions,
+      );
 
   /// Creates a negative value
   const MathFunctionNegative(MathNode x) : super(x);
@@ -313,7 +476,15 @@ class MathFunctionNegative extends MathFunction {
 /// of 1 is the default value.
 class MathFunctionE extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.exp(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.exp(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates an exponent value
   const MathFunctionE({MathNode x1 = const MathValue(1)}) : super(x1);
@@ -338,8 +509,20 @@ class MathValuePi extends MathValue {
 /// Evaluates to [left] in the power of [right].
 class MathOperatorPower extends MathOperator {
   @override
-  num calc(MathVariableValues values) =>
-      math.pow(left.calc(values), right.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.pow(
+          left.calc(
+            values,
+            customFunctions: customFunctions,
+          ),
+          right.calc(
+            values,
+            customFunctions: customFunctions,
+          ));
 
   /// Creates the power operation
   const MathOperatorPower(MathNode base, MathNode exponent)
@@ -354,7 +537,15 @@ class MathOperatorPower extends MathOperator {
 /// Evaluates to the value of sin at the point of [x1]
 class MathFunctionSin extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.sin(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.sin(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the sin function
   const MathFunctionSin(MathNode x1) : super(x1);
@@ -368,7 +559,15 @@ class MathFunctionSin extends MathFunction {
 /// Evaluates to the value of cos at the point of [x1]
 class MathFunctionCos extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.cos(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.cos(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the cos function
   const MathFunctionCos(MathNode x1) : super(x1);
@@ -382,7 +581,15 @@ class MathFunctionCos extends MathFunction {
 /// Evaluates to the value of tan at the point of [x1]
 class MathFunctionTan extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.tan(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.tan(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the tan function
   const MathFunctionTan(MathNode x1) : super(x1);
@@ -396,7 +603,16 @@ class MathFunctionTan extends MathFunction {
 /// Evaluates to the value of cot at the point of [x1]
 class MathFunctionCot extends MathFunction {
   @override
-  num calc(MathVariableValues values) => 1 / math.tan(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      1 /
+      math.tan(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the cot function
   const MathFunctionCot(MathNode x1) : super(x1);
@@ -410,7 +626,15 @@ class MathFunctionCot extends MathFunction {
 /// Evaluates to the value of asin at the point of [x1]
 class MathFunctionAsin extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.asin(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.asin(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the asin function
   const MathFunctionAsin(MathNode x1) : super(x1);
@@ -424,7 +648,15 @@ class MathFunctionAsin extends MathFunction {
 /// Evaluates to the value of acos at the point of [x1]
 class MathFunctionAcos extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.acos(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.acos(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the acos function
   const MathFunctionAcos(MathNode x1) : super(x1);
@@ -438,7 +670,15 @@ class MathFunctionAcos extends MathFunction {
 /// Evaluates to the value of atan at the point of [x1]
 class MathFunctionAtan extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.atan(x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.atan(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the atan function
   const MathFunctionAtan(MathNode x1) : super(x1);
@@ -452,7 +692,16 @@ class MathFunctionAtan extends MathFunction {
 /// Evaluates to the value of acot at the point of [x1]
 class MathFunctionAcot extends MathFunction {
   @override
-  num calc(MathVariableValues values) => math.atan(1 / x1.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.atan(1 /
+          x1.calc(
+            values,
+            customFunctions: customFunctions,
+          ));
 
   /// Creates the acot function
   const MathFunctionAcot(MathNode x1) : super(x1);
@@ -468,15 +717,26 @@ class MathFunctionAcot extends MathFunction {
 /// By default it's natural logarithm (base equals 10)
 class MathFunctionLog extends MathFunctionWithTwoArguments {
   @override
-  num calc(MathVariableValues values) =>
-      math.log(x1.calc(values)) / math.log(x2.calc(values));
+  num calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) =>
+      math.log(x1.calc(
+        values,
+        customFunctions: customFunctions,
+      )) /
+      math.log(x2.calc(
+        values,
+        customFunctions: customFunctions,
+      ));
 
   /// Creates the log function
   const MathFunctionLog(MathNode x1, {MathNode x2 = const MathValue(10)})
       : super(x1, x2);
 
   @override
-  String toString() => '[LOG($x1, $x2)]';
+  String toString() => '[LOG($x2, $x1)]';
 }
 
 /// The ln Function
@@ -506,6 +766,14 @@ abstract class MathComparison extends MathExpression {
   Set<String> getUsedVariables() {
     return {...left.getUsedVariables(), ...right.getUsedVariables()};
   }
+
+  @override
+  Set<MathDefinitionFunctionFreeform> getUsedFreeformFunctions() {
+    return {
+      ...left.getUsedFreeformFunctions(),
+      ...right.getUsedFreeformFunctions()
+    };
+  }
 }
 
 /// Equation
@@ -513,9 +781,19 @@ abstract class MathComparison extends MathExpression {
 /// The equation class which can contain multiple MathExpressions to be compared
 class MathComparisonEquation extends MathComparison {
   @override
-  num? calc(MathVariableValues values) {
-    final leftResult = left.calc(values);
-    final rightResult = right.calc(values);
+  num? calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) {
+    final leftResult = left.calc(
+      values,
+      customFunctions: customFunctions,
+    );
+    final rightResult = right.calc(
+      values,
+      customFunctions: customFunctions,
+    );
 
     if (leftResult == rightResult) return leftResult;
 
@@ -537,11 +815,21 @@ class MathComparisonEquation extends MathComparison {
 /// Looks for a bigger MathExpression
 class MathComparisonGreater extends MathComparison {
   @override
-  num? calc(MathVariableValues values) {
-    final leftResult = left.calc(values);
+  num? calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) {
+    final leftResult = left.calc(
+      values,
+      customFunctions: customFunctions,
+    );
     if (leftResult == null) return null;
 
-    final rightResult = right.calc(values);
+    final rightResult = right.calc(
+      values,
+      customFunctions: customFunctions,
+    );
     if (rightResult == null) return null;
 
     if (leftResult > rightResult) return leftResult;
@@ -563,11 +851,21 @@ class MathComparisonGreater extends MathComparison {
 /// Looks for a bigger MathExpression
 class MathComparisonLess extends MathComparison {
   @override
-  num? calc(MathVariableValues values) {
-    final leftResult = left.calc(values);
+  num? calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) {
+    final leftResult = left.calc(
+      values,
+      customFunctions: customFunctions,
+    );
     if (leftResult == null) return null;
 
-    final rightResult = right.calc(values);
+    final rightResult = right.calc(
+      values,
+      customFunctions: customFunctions,
+    );
     if (rightResult == null) return null;
 
     if (leftResult < rightResult) return leftResult;
@@ -582,4 +880,141 @@ class MathComparisonLess extends MathComparison {
   /// Creates a less comparison
   const MathComparisonLess(MathExpression left, MathExpression right)
       : super(left, right);
+}
+
+/// Create a new freeform function
+///
+/// This class is intended to be extended when developer needs to
+/// define a custom function to [MathNodeExpression.toString]
+abstract class MathDefinitionFunctionFreeform {
+  /// Function name used by parser
+  ///
+  /// Case sensitive
+  String get name;
+
+  /// Minimum arguments count
+  int get minArgumentsCount;
+
+  /// Maximum arguments count
+  int get maxArgumentsCount;
+
+  /// Checks function compatibility
+  ///
+  /// Must return true when a given function definition satisfies this custom
+  /// function (in most cases, this means equal name and arguments number range)
+  bool isCompatible(MathDefinitionFunctionFreeform other);
+
+  /// Checks if the function has the name name
+  ///
+  /// Must return true when functions have the same name
+  bool hasSameName(String other);
+
+  @override
+  String toString() {
+    return 'FUNC_DEF:$name($minArgumentsCount:$maxArgumentsCount)';
+  }
+}
+
+/// Create a new freeform function with implementation
+///
+/// This class in intended to be extended when developer declares
+/// a usable custom function in [MathNodeExpression.toString] or
+/// [MathExpression.calc] methods
+abstract class MathDefinitionFunctionFreeformImplemented
+    extends MathDefinitionFunctionFreeform {
+  /// Defined implementation
+  num calc(
+    List<MathNode> args,
+    MathVariableValues values, {
+    required MathCustomFunctionsImplemented customFunctions,
+  });
+}
+
+/// Set of custom functions
+///
+/// To declare a custom function, implement [MathDefinitionFunctionFreeform] or
+/// [MathDefinitionFunctionFreeformImplemented] interface and pass it as a member
+/// of the set when constructing this class.
+///
+/// When using [MathNodeExpression.fromString], you can omit implementing the
+/// functions, but [MathExpression.calc] will require you to pass a
+/// [MathCustomFunctionsImplemented] instance instead, which requires
+/// the functions to have the calc method. If you pass
+/// [MathDefinitionFunctionFreeformImplemented] in `fromString`, you won't need
+/// to declare the implementation when parsing.
+class MathCustomFunctions {
+  /// Function definitions
+  final Set<MathDefinitionFunctionFreeform> definitions;
+
+  /// Creates a set of custom functions
+  ///
+  /// See class documentation for examples
+  const MathCustomFunctions(this.definitions);
+
+  /// Get a declaration by its descriptor
+  MathDefinitionFunctionFreeform operator [](
+      MathDefinitionFunctionFreeform key) {
+    return definitions.firstWhere(
+      (element) => element.isCompatible(key),
+      orElse: () => throw UndefinedFunctionException(key.toString()),
+    );
+  }
+
+  /// Get a declaration by its name
+  MathDefinitionFunctionFreeform? byName(String name) {
+    try {
+      return definitions.firstWhere(
+        (element) => element.hasSameName(name),
+      );
+    } on StateError {
+      return null;
+    } catch (e) {
+      rethrow;
+    }
+  }
+}
+
+/// Set of custom implemented functions
+///
+/// To declare a custom function, implement [MathDefinitionFunctionFreeform] or
+/// [MathDefinitionFunctionFreeformImplemented] interface and pass it as a member
+/// of the set when constructing this class.
+///
+/// When using [MathNodeExpression.fromString], you can omit implementing the
+/// functions, but [MathExpression.calc] will require you to pass a
+/// [MathCustomFunctionsImplemented] instance instead, which requires
+/// the functions to have the calc method. If you pass
+/// [MathDefinitionFunctionFreeformImplemented] in `fromString`, you won't need
+/// to declare the implementation when parsing.
+class MathCustomFunctionsImplemented implements MathCustomFunctions {
+  @override
+  final Set<MathDefinitionFunctionFreeformImplemented> definitions;
+
+  /// Creates a set of custom defined functions
+  ///
+  /// See class documentation for examples
+  const MathCustomFunctionsImplemented(this.definitions);
+
+  /// Get a declaration by its descriptor
+  @override
+  MathDefinitionFunctionFreeformImplemented operator [](
+      MathDefinitionFunctionFreeform key) {
+    return definitions.firstWhere(
+      (element) => element.isCompatible(key),
+      orElse: () => throw UndefinedFunctionException(key.toString()),
+    );
+  }
+
+  @override
+  MathDefinitionFunctionFreeform? byName(String name) {
+    try {
+      return definitions.firstWhere(
+        (element) => element.name == name,
+      );
+    } on StateError {
+      return null;
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

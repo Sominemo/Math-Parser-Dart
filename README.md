@@ -50,9 +50,14 @@ The library can parse general mathematical expressions strings
 and return them as a machine-readable `MathNode` using
 `MathNodeExpression.fromString` method.
 
-- Set `isMinusNegativeFunction` to `true` to interpret minus operator as a
-  sum of two values, right of which will be negative: X - Y turns to X + (-Y)
-- Set `isImplicitMultiplication` to `false` to disable implicit multiplication
+Define custom variables with `variableNames` parameter. Don't forget to
+define the variable value in `MathExpression.calc` when calling it.
+
+Define custom functions using `customFunctions` argument. You can use either
+`MathCustomFunctions` class, which plainly declares the functions, or
+`MathCustomFunctionsImplemented`, which also requires to implement the
+function. When you use `MathCustomFunctionsImplemented` during parsing,
+you don't need to redeclare the function in `MathExpression.calc`.
 
 ### Parse priority:
 
@@ -61,11 +66,14 @@ and return them as a machine-readable `MathNode` using
    by default, but you can override this behavior with the variableNames
    parameter. You can rewrite e and pi by defining it in variableNames and
    mentioning it during the calc call.
-   First character must be a letter, others - letters, digits, or
-   underscore. Letters may be latin or Greek, both lower or capital case.
-   You can't use built-in function names like sin, cos, etc. Variable names
-   are case-sensitive
+   First character must be a letter or \_, others - letters, digits, period,
+   or underscore. Last symbol can't be a period. Letters may be latin or
+   Greek, both lower or capital case. You can't use built-in function
+   names like sin, cos, etc. Variable names are case-sensitive. Custom
+   functions have the same requirements, except they can override built-in
+   functions.
 3. Functions (case-sensitive):
+   - Custom functions
    - sin, cos, tan (tg), cot (ctg)
    - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
    - ln (base=E), lg (base=2), log\[base\]\(x\)
@@ -89,11 +97,13 @@ MathNode fromString(
 
     /// Expressions which should be marked as variables
     Set<String> variableNames = const {'x'},
+
+    /// Expressions which should be marked as functions
+    MathCustomFunctions customFunctions = const MathCustomFunctions({}),
   });
 ```
 
-Example for parsing a string and evaluating it with `x = 20`
-and `y = 5`:
+Example for parsing a string and evaluating it with `x = 20`:
 
 ```dart
 final expression = MathNodeExpression.fromString(
@@ -103,7 +113,8 @@ final expression = MathNodeExpression.fromString(
 );
 ```
 
-More complicated work with variables is shown off in example.
+More complicated work with variables and functions is shown off in
+example.
 
 You can also parse equations with `MathNodeExpression.fromStringExtended`,
 refer to example for this.

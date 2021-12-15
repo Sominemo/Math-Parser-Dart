@@ -23,3 +23,21 @@ class UndefinedVariableException extends MathException {
   /// Created a new Undefined Variable Exception
   const UndefinedVariableException(this.name);
 }
+
+/// Undefined Function Exception
+///
+/// Thrown when there's a function referenced in calculations which wasn't passed
+/// to the [MathNode.calc] function
+class UndefinedFunctionException extends MathException {
+  @override
+  String toString() {
+    return 'UndefinedFunctionException: Function "$name" was not defined in '
+        'the calc() function. Function names are case-sensitive';
+  }
+
+  /// The missing function
+  final String name;
+
+  /// Created a new Undefined Function Exception
+  const UndefinedFunctionException(this.name);
+}

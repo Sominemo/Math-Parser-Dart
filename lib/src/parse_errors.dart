@@ -29,23 +29,23 @@ class MissingOperatorOperandException extends MathParseException {
   const MissingOperatorOperandException(this.operator);
 }
 
-/// Missing Function Argument List Exception
+/// Out Of Range Function Argument List Exception
 ///
-/// Thrown when a function receives less arguments than it expects.
+/// Thrown when a function receives less or more arguments than it expects.
 ///
 /// The function which caused the problem is stored in [func]
-class MissingFunctionArgumentListException extends MathParseException {
+class OutOfRangeFunctionArgumentListException extends MathParseException {
   @override
   String toString() {
-    return 'MissingFunctionArgumentListException: "$func" has insufficient '
-        'arguments fed';
+    return 'OutOfRangeFunctionArgumentListException: "$func" has insufficient '
+        'arguments fed or has too much of them';
   }
 
   /// The function which caused the problem
   final String func;
 
-  /// Creates a new Missing Function Argument List Exception
-  const MissingFunctionArgumentListException(this.func);
+  /// Creates a new Out Of Range Function Argument List Exception
+  const OutOfRangeFunctionArgumentListException(this.func);
 }
 
 /// Unknown Operation Exception
@@ -78,10 +78,10 @@ class CantProcessExpressionException extends MathParseException {
     return 'CantProcessExpressionException: '
         'Some parts of the expression were left unprocessed: '
         '${parts.map((p) => p.toString()).join(', ')}.'
-        '\nThis often happens if you used an undefined variable in '
-        'variableNames parameter of the parse function or you haven\'t '
-        'specified the multiplication operator explicitly and don\'t have '
-        'isImplicitMultiplication turned on';
+        '\nThis often happens if you used an undefined variable or function in '
+        'variableNames and customFunctions parameters of the parse function or '
+        'you haven\'t specified the multiplication operator explicitly and '
+        'don\'t have isImplicitMultiplication turned on';
   }
 
   /// The unprocessed parts
@@ -118,14 +118,17 @@ class UnexpectedClosingBracketException extends MathParseException {
   @override
   String toString() {
     return 'UnexpectedClosingBracketException: A bracket of type "$type" was '
-        'found in unexpected context';
+        'found in unexpected context at position $position';
   }
 
   /// The type of bracket
   final String type;
 
+  /// Error position
+  final int position;
+
   /// Creates a new Unexpected Closing Bracket Exception
-  const UnexpectedClosingBracketException(this.type);
+  const UnexpectedClosingBracketException(this.type, this.position);
 }
 
 /// Brackets Not Closed Exception
@@ -137,15 +140,26 @@ class UnexpectedClosingBracketException extends MathParseException {
 class BracketsNotClosedException extends MathParseException {
   @override
   String toString() {
-    return "BracketsNotClosedException: A bracket of type \"$type\" wasn't "
-        "closed so correct expression parsing can't be guaranteed";
+    return 'BracketsNotClosedException: A bracket of type "$type" was opened '
+        "at position $startPosition but wasn't closed before position "
+        "$position so correct expression parsing can't be guaranteed.";
   }
 
   /// The type of bracket
   final String type;
 
+  /// Start position
+  final int startPosition;
+
+  /// Error position
+  final int position;
+
   /// Creates a new Brackets Not Closed Exception
-  const BracketsNotClosedException(this.type);
+  const BracketsNotClosedException(
+    this.type,
+    this.startPosition,
+    this.position,
+  );
 }
 
 /// Invalid Variable Name Exception
@@ -158,14 +172,73 @@ class InvalidVariableNameException extends MathParseException {
   String toString() {
     return "InvalidVariableNameException: A variable with name \"$name\" can't"
         ' be defined. First character must be a letter, others - letters, '
-        'digits, or underscore. Letters may be latin or Greek, both lower or '
-        'capital case. You can\'t use built-in function names like sin, cos, '
-        'etc. Variable names are case-sensitive';
+        'digits, period, or underscore.  Last symbol can\'t be a period. '
+        'Letters may be latin or Greek, both lower or capital case. You can\'t'
+        ' use built-in function names like sin, cos, etc. Variable names are '
+        'case-sensitive. You can check name validity in '
+        'MathNodeExpression.isVariableNameValid()';
   }
 
-  /// The missing variable
+  /// The incorrect variable
   final String name;
 
   /// Created a new Undefined Variable Exception
   const InvalidVariableNameException(this.name);
+}
+
+/// Invalid Function Name Exception
+///
+/// Thrown when function has incorrect name
+///
+/// The definition which caused the error is stored in [name]
+class InvalidFunctionNameException extends MathParseException {
+  @override
+  String toString() {
+    return "InvalidFunctionNameException: A function with name \"$name\" can't"
+        ' be defined. First character must be a letter or _, others - letters, '
+        'digits, period, or underscore. Last symbol can\'t be a period. '
+        'Letters may be latin or Greek, both lower or capital case. Function '
+        'names are case-sensitive. You can check name validity in '
+        'MathNodeExpression.isVariableNameValid()';
+  }
+
+  /// The incorrect function definition
+  final String name;
+
+  /// Created a new Undefined Function Exception
+  const InvalidFunctionNameException(this.name);
+}
+
+/// Duplicate Declaration Exception
+///
+/// Thrown when there's a function with the same name as a defined variable
+class DuplicateDeclarationException extends MathParseException {
+  @override
+  String toString() {
+    return 'DuplicateDeclarationException: Function "$name" was already '
+        'defined as a variable.';
+  }
+
+  /// The problematic function
+  final String name;
+
+  /// Created a new Duplicate Declaration Exception
+  const DuplicateDeclarationException(this.name);
+}
+
+/// Invalid Function Arguments Declaration
+///
+/// Thrown when function has invalid function arguments range
+class InvalidFunctionArgumentsDeclaration extends MathParseException {
+  @override
+  String toString() {
+    return 'InvalidFunctionArgumentsDeclaration: Function "$name" has '
+        'incorrect accepting arguments range.';
+  }
+
+  /// The problematic function
+  final String name;
+
+  /// Created a new Invalid Function Arguments Declaration
+  const InvalidFunctionArgumentsDeclaration(this.name);
 }

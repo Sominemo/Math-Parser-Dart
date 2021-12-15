@@ -15,17 +15,29 @@ extension MathNodeExpression on MathExpression {
   /// - Set [isImplicitMultiplication] to `false` to disable implicit
   /// multiplication
   ///
+  /// Define custom variables with [variableNames] parameter. Don't forget to
+  /// define the variable value in [MathExpression.calc] when calling it.
+  ///
+  /// Define custom functions using [customFunctions] argument. You can use either
+  /// [MathCustomFunctions] class, which plainly declares the functions, or
+  /// [MathCustomFunctionsImplemented], which also requires to implement the
+  /// function. When you use [MathCustomFunctionsImplemented] during parsing,
+  /// you don't need to redeclare the function in [MathExpression.calc].
+  ///
   /// Parse priority:
   /// 1. Parentheses () []
   /// 2. Variables: e, pi (π) and custom ones.
   ///    `x` is being interpreted as a var by default, but you can override
   ///    this behavior with the variableNames parameter. You can rewrite e and pi
   ///    by defining it in variableNames and mentioning it during the calc call.
-  ///    First character must be a letter, others - letters, digits, or
-  ///    underscore. Letters may be latin or Greek, both lower or capital case.
+  ///    First character must be a letter or _, others - letters, digits, period,'
+  ///    or underscore. Last symbol can't be a period. Letters may be latin or
+  ///    Greek, both lower or capital case.
   ///    You can't use built-in function names like sin, cos, etc. Variable names
-  ///    are case-sensitive
+  ///    are case-sensitive.  Custom functions have the same requirements, except
+  ///    they can override built-in functions.
   /// 3. Functions (case-sensitive):
+  ///    - Custom functions
   ///    - sin, cos, tan (tg), cot (ctg)
   ///    - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
   ///    - ln (base=E), lg (base=2), log\[base\](x)
@@ -47,33 +59,49 @@ extension MathNodeExpression on MathExpression {
 
     /// Expressions which should be marked as variables
     Set<String> variableNames = const {'x'},
+
+    /// Expressions which should be marked as functions
+    MathCustomFunctions customFunctions = const MathCustomFunctions({}),
   }) {
-    try {
-      for (final e in variableNames) {
-        _checkVariableName(e);
+    for (final e in variableNames) {
+      _checkVariableName(e);
+    }
+
+    for (final e in customFunctions.definitions) {
+      _checkVariableName(e.name, isFunction: true);
+
+      if (e.minArgumentsCount < 0 ||
+          e.maxArgumentsCount < e.minArgumentsCount) {
+        throw InvalidFunctionArgumentsDeclaration(e.toString());
       }
 
-      final variableNamesList = variableNames.toList();
-      variableNamesList.sort((a, b) => b.length.compareTo(a.length));
-
-      return _parseMathString(
-        expression,
-        isMinusNegativeFunction: isMinusNegativeFunction,
-        isImplicitMultiplication: isImplicitMultiplication,
-        variableNames: variableNames,
-        regexp: RegExp(
-          '(' +
-              variableNamesList.join('|') +
-              (variableNamesList.isNotEmpty ? '|' : '') +
-              r'(\d+(\.\d+)?)|\+|-|\^|/|\*|e|asin|acos|atan|acot|'
-                  r'arcsin|arccos|arctg|arcctg|cos|tan|tg|cot|ctg|sqrt|√|ln|log|lg|pi|π)',
-        ),
-      );
-    } on MathException {
-      rethrow;
-    } catch (e) {
-      throw ParsingFailedException(e);
+      if (variableNames.contains(e.name)) {
+        throw DuplicateDeclarationException(e.toString());
+      }
     }
+
+    final variableNamesList = [
+      ...customFunctions.definitions.map<String>((e) => e.name),
+      ..._variableBuiltIns,
+      ..._bracketFuncs,
+      ...variableNames,
+    ];
+
+    variableNamesList.sort((a, b) => b.length.compareTo(a.length));
+
+    return _parseMathString(
+      expression,
+      isMinusNegativeFunction: isMinusNegativeFunction,
+      isImplicitMultiplication: isImplicitMultiplication,
+      variableNames: variableNames,
+      customFunctions: customFunctions,
+      regexp: RegExp(
+        '(' +
+            variableNamesList.map((e) => RegExp.escape(e)).join('|') +
+            (variableNamesList.isNotEmpty ? '|' : '') +
+            r'(\d+(\.\d+)?)|\+|-|\^|/|\*)',
+      ),
+    );
   }
 
   /// Create a new MathExpression from String
@@ -94,6 +122,10 @@ extension MathNodeExpression on MathExpression {
 
     /// Expressions which should be marked as variables
     Set<String> variableNames = const {'x'},
+
+    /// Expressions which should be marked as functions
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
   }) {
     final nodes = <_MathExpressionPart>[];
 
@@ -129,6 +161,7 @@ extension MathNodeExpression on MathExpression {
             left.str,
             isMinusNegativeFunction: isImplicitMultiplication,
             isImplicitMultiplication: isImplicitMultiplication,
+            customFunctions: customFunctions,
             variableNames: variableNames,
           ),
         );
@@ -147,6 +180,7 @@ extension MathNodeExpression on MathExpression {
             right.str,
             isMinusNegativeFunction: isImplicitMultiplication,
             isImplicitMultiplication: isImplicitMultiplication,
+            customFunctions: customFunctions,
             variableNames: variableNames,
           ),
         );
@@ -182,6 +216,7 @@ extension MathNodeExpression on MathExpression {
           nodes[0].str!,
           isMinusNegativeFunction: isImplicitMultiplication,
           isImplicitMultiplication: isImplicitMultiplication,
+          customFunctions: customFunctions,
           variableNames: variableNames,
         );
       } else if (nodes[0] is _MathExpressionPartParsed) {
@@ -192,13 +227,13 @@ extension MathNodeExpression on MathExpression {
     throw CantProcessExpressionException(nodes);
   }
 
-  /// Detect potential variable names
+  /// Detect potential variable and function names
   ///
   /// This method analyzes the given string and assumes if there are
-  /// any variable names. This method doesn't give you a 100% guarantee
-  /// if you use implicit multiplication, since there's no way to be sure if an
-  /// unprocessed substring is a whole name or multiple variables being
-  /// multiplied. Because of that, this method assumes you don't use implicit
+  /// any variable  and function names. This method doesn't give you a 100%
+  /// guarantee if you use implicit multiplication, since there's no way to be
+  /// sure if an unprocessed substring is a whole name or multiple variables being
+  /// multiplied, or if that's a function getting multiplied with parentheses. Because of that, this method assumes you don't use implicit
   /// multiplication.
   ///
   /// Returns a list of strings of potential undeclared variable names.
@@ -206,16 +241,47 @@ extension MathNodeExpression on MathExpression {
   /// Use `hideBuiltIns` if you want to remove built-in variables like `e` and
   /// `pi` from result. Can be useful if you are going to prompt user to enter the
   /// values.
-  static Set<String> getPotentialVariableNames(
+  static _MathExpressionDefinable getPotentialDefinable(
     String expression, {
     bool hideBuiltIns = false,
   }) {
-    return RegExp(_variableNameBaseRegExp)
+    final funcs = getPotentialFunctionNames(expression, hideBuiltIns: false);
+
+    final vars = RegExp(_variableNameBaseRegExp)
         .allMatches(expression)
         .map((element) => element.group(0)!)
         .where((element) {
       return !(_bracketFuncs.contains(element)) &&
-          !(hideBuiltIns && _variableBuiltIns.contains(element));
+          !(hideBuiltIns && _variableBuiltIns.contains(element)) &&
+          !funcs.contains(element);
+    }).toSet();
+
+    return _MathExpressionDefinable(vars, funcs);
+  }
+
+  /// Detect potential function names
+  ///
+  /// This method analyzes the given string and assumes if there are
+  /// any function names. This method doesn't give you a 100% guarantee
+  /// if you use implicit multiplication, since there's no way to be sure if an
+  /// unprocessed substring is a function name or a variable being multiplied.
+  /// Because of that, this method assumes you don't use implicit
+  /// multiplication.
+  ///
+  /// Returns a list of strings of potential undeclared function names.
+  ///
+  /// Use `hideBuiltIns` if you want to remove built-in functions like `cos`,
+  /// `sin` and other from result. Can be useful if you are going to prompt user
+  /// to define the functions.
+  static Set<String> getPotentialFunctionNames(
+    String expression, {
+    bool hideBuiltIns = false,
+  }) {
+    return RegExp('(' + _variableNameBaseRegExp + ')([(])')
+        .allMatches(expression)
+        .map((element) => element.group(1)!)
+        .where((element) {
+      return (!hideBuiltIns || !_bracketFuncs.contains(element));
     }).toSet();
   }
 
@@ -230,8 +296,8 @@ extension MathNodeExpression on MathExpression {
   ///
   /// Returns `true` if parser can interpret given token as a variable during
   /// parsing.
-  static bool isVariableNameValid(String name) {
-    return _validateVariableName(name);
+  static bool isVariableNameValid(String name, {bool isFunction = false}) {
+    return _validateVariableName(name, isFunction: isFunction);
   }
 }
 
@@ -259,16 +325,21 @@ const _bracketFuncs = {
   'arcctg'
 };
 
-final _variableNameBaseRegExp = '[a-zA-Zα-ωΑ-Ω]([a-zA-Zα-ωΑ-Ω0-9_]+)?';
+final _variableNameBaseRegExp =
+    '[a-zA-Zα-ωΑ-Ω_]([a-zA-Zα-ωΑ-Ω0-9_.]+(?<=[a-zA-Zα-ωΑ-Ω0-9_]))?';
 
-bool _validateVariableName(String name) {
+bool _validateVariableName(String name, {bool isFunction = false}) {
   return (RegExp('^$_variableNameBaseRegExp\$').hasMatch(name)) &&
-      !_bracketFuncs.contains(name);
+      (isFunction || !_bracketFuncs.contains(name));
 }
 
-void _checkVariableName(String name) {
-  if (!_validateVariableName(name)) {
-    throw InvalidVariableNameException(name);
+void _checkVariableName(String name, {bool isFunction = false}) {
+  if (!_validateVariableName(name, isFunction: isFunction)) {
+    if (isFunction) {
+      throw InvalidFunctionNameException(name);
+    } else {
+      throw InvalidVariableNameException(name);
+    }
   }
 }
 
@@ -276,80 +347,100 @@ const _priority1 = {'^'};
 const _priority2 = {'/', '*'};
 const _priority3 = {'-', '+'};
 
+class _BracketType {
+  final String start;
+  final String end;
+
+  @override
+  bool operator ==(other) {
+    if (other is! _BracketType) return false;
+    return start == other.start && end == other.end;
+  }
+
+  @override
+  int get hashCode => start.hashCode * 13 + end.hashCode * 14;
+
+  const _BracketType(
+    this.start,
+    this.end,
+  );
+}
+
+const _bracketTypes = <_BracketType>[
+  _BracketType('(', ')'),
+  _BracketType('[', ']'),
+];
+
 MathNode _parseMathString(
   String s, {
   required bool isMinusNegativeFunction,
   required bool isImplicitMultiplication,
   required Set<String> variableNames,
+  required MathCustomFunctions customFunctions,
   required RegExp regexp,
 }) {
   final List<_UnprocessedMathString> tempNodes = [];
 
-  // Looking for brackets
-  int expectedClosingBracketsNumber = 0, openedNodePosition = 0;
-  bool squareBrackets = false;
+  // Looking for brackets on top level
+  int openedNodePosition = 0;
+  final List<_BracketType> bracketList = [];
 
+  character:
   for (int pos = 0; pos < s.length; pos++) {
     final String char = s[pos];
 
-    if (char == '(') {
-      if (openedNodePosition != pos && expectedClosingBracketsNumber == 0) {
-        tempNodes.add(_UnprocessedMathString(
-          s.substring(openedNodePosition, pos),
-        ));
-
-        openedNodePosition = pos;
-      }
-
-      expectedClosingBracketsNumber++;
-    } else if (char == ')' && !squareBrackets) {
-      if (expectedClosingBracketsNumber > 1) {
-        expectedClosingBracketsNumber--;
-      } else if (expectedClosingBracketsNumber <= 0) {
-        throw const UnexpectedClosingBracketException(')');
-      } else {
-        expectedClosingBracketsNumber--;
-        tempNodes.add(_UnprocessedBrackets(
-          s.substring(openedNodePosition + 1, pos),
-        ));
-        openedNodePosition = pos + 1;
-      }
-    } else if (char == '[') {
-      if (openedNodePosition != pos && expectedClosingBracketsNumber == 0) {
-        tempNodes.add(_UnprocessedMathString(
-          s.substring(openedNodePosition, pos),
-        ));
-
-        openedNodePosition = pos;
-        squareBrackets = true;
-        expectedClosingBracketsNumber++;
-      }
-    } else if (char == ']' && squareBrackets) {
-      if (expectedClosingBracketsNumber > 1) {
-        expectedClosingBracketsNumber--;
-      } else if (expectedClosingBracketsNumber <= 0) {
-        throw const UnexpectedClosingBracketException(']');
-      } else {
-        expectedClosingBracketsNumber--;
-        tempNodes.add(_UnprocessedSquareBrackets(
-          s.substring(openedNodePosition + 1, pos),
-        ));
-        squareBrackets = false;
-        openedNodePosition = pos + 1;
-      }
-    } else if (pos == s.length - 1) {
-      if (expectedClosingBracketsNumber > 0) {
-        if (squareBrackets) {
-          throw const BracketsNotClosedException('[');
-        } else {
-          throw const BracketsNotClosedException('(');
+    for (final currentBracketType in _bracketTypes) {
+      if (char == currentBracketType.start) {
+        if (pos != 0 && bracketList.isEmpty) {
+          tempNodes.add(_UnprocessedMathString(
+            s.substring(
+              openedNodePosition,
+              pos,
+            ),
+          ));
         }
-      } else {
-        tempNodes.add(_UnprocessedMathString(
-          s.substring(openedNodePosition, pos + 1),
-        ));
+
+        bracketList.add(currentBracketType);
+
+        if (bracketList.length > 1) {
+          continue character;
+        }
+
+        openedNodePosition = pos + 1;
+      } else if (char == currentBracketType.end) {
+        if (bracketList.isEmpty || bracketList.last != currentBracketType) {
+          throw UnexpectedClosingBracketException(currentBracketType.end, pos);
+        }
+
+        bracketList.removeLast();
+
+        if (bracketList.isNotEmpty) {
+          continue character;
+        }
+
+        tempNodes.add(
+          _UnprocessedBrackets(s.substring(openedNodePosition, pos)),
+        );
+        openedNodePosition = pos + 1;
       }
     }
+  }
+
+  if (bracketList.isNotEmpty) {
+    throw BracketsNotClosedException(
+      bracketList.last.start,
+      openedNodePosition,
+      s.length,
+    );
+  }
+
+  if (openedNodePosition != s.length) {
+    tempNodes.add(_UnprocessedMathString(
+      s.substring(
+        openedNodePosition,
+        s.length,
+      ),
+    ));
   }
 
   final nodes = <_MathNodePart>[];
@@ -378,13 +469,28 @@ MathNode _parseMathString(
       if (r.isNotEmpty) nodes.add(_MathNodePartString(r));
     } else {
       if (item.contents == '') continue;
-      nodes.add(_MathNodePartParsed(_parseMathString(
-        item.contents,
-        isMinusNegativeFunction: isMinusNegativeFunction,
-        isImplicitMultiplication: isImplicitMultiplication,
-        variableNames: variableNames,
-        regexp: regexp,
-      )));
+
+      final sp = item.contents.split(',');
+      final List<MathNode> n = [];
+
+      for (final r in sp) {
+        if (r.trim().isEmpty) continue;
+
+        n.add(_parseMathString(
+          r,
+          isMinusNegativeFunction: isMinusNegativeFunction,
+          isImplicitMultiplication: isImplicitMultiplication,
+          variableNames: variableNames,
+          customFunctions: customFunctions,
+          regexp: regexp,
+        ));
+      }
+
+      if (n.length == 1) {
+        nodes.add(_MathNodePartParsed(n[0]));
+      } else {
+        nodes.add(_MathNodePartParsedList(n));
+      }
     }
   }
 
@@ -412,79 +518,106 @@ MathNode _parseMathString(
   for (int i = 0; i < nodes.length; i++) {
     final item = nodes[i];
 
-    if (_bracketFuncs.contains(item.str)) {
-      if (i + 1 == nodes.length) {
-        throw MissingFunctionArgumentListException(item.toString());
-      }
-      _MathNodePartParsed op;
+    MathDefinitionFunctionFreeform? cf;
+    final doesBuiltInContain = _bracketFuncs.contains(item.str);
+
+    if (item is _MathNodePartString) {
+      cf = customFunctions.byName(item.str);
+    }
+
+    _MathNodePartParsedList? op;
+
+    if (i + 1 != nodes.length) {
       final te = nodes[i + 1];
-      if (te is _MathNodePartString) {
-        op = _MathNodePartParsed(_parseMathString(
-          te.str,
-          isMinusNegativeFunction: isMinusNegativeFunction,
-          isImplicitMultiplication: isImplicitMultiplication,
-          variableNames: variableNames,
-          regexp: regexp,
-        ));
-      } else if (te is _MathNodePartParsed) {
+
+      if (te is _MathNodePartParsed) {
+        op = _MathNodePartParsedList([te.node]);
+      } else if (te is _MathNodePartParsedList) {
         op = te;
-      } else {
-        throw UnknownOperationException(item.toString());
+      }
+    }
+
+    if (cf != null) {
+      if ((op == null || op.nodeList.isEmpty) && cf.minArgumentsCount > 0 ||
+          op != null &&
+              (op.nodeList.length < cf.minArgumentsCount ||
+                  op.nodeList.length > cf.maxArgumentsCount)) {
+        throw OutOfRangeFunctionArgumentListException(cf.toString());
+      }
+
+      final el =
+          _MathNodePartParsed(MathFunctionFreeform(cf, op?.nodeList ?? []));
+
+      nodes.removeAt(i);
+      if (op != null) nodes.removeAt(i);
+      nodes.insert(i, el);
+      continue;
+    }
+
+    if (doesBuiltInContain) {
+      if (op == null || op is! _MathNodePartParsedList) {
+        throw OutOfRangeFunctionArgumentListException(cf.toString());
       }
 
       MathNode? el;
 
-      switch (item.str) {
-        case 'sin':
-          el = MathFunctionSin(op.node);
-          break;
-        case 'cos':
-          el = MathFunctionCos(op.node);
-          break;
-        case 'tan':
-        case 'tg':
-          el = MathFunctionTan(op.node);
-          break;
-        case 'cot':
-        case 'ctg':
-          el = MathFunctionCot(op.node);
-          break;
-        case 'sqrt':
-        case '√':
-          el = MathOperatorPower(op.node, const MathValue(1 / 2));
-          break;
-        case 'ln':
-          el = MathFunctionLn(op.node);
-          break;
-        case 'lg':
-          el = MathFunctionLog(op.node, x2: const MathValue(2));
-          break;
-        case 'log':
-          final n = nodes[i + 2];
-          if (n is! _MathNodePartParsed) {
-            throw UnknownOperationException(n.toString());
-          }
-          el = MathFunctionLog(n.node, x2: op.node);
-          nodes.removeAt(i);
-          break;
-        case 'asin':
-        case 'arcsin':
-          el = MathFunctionAsin(op.node);
-          break;
-        case 'acos':
-        case 'arccos':
-          el = MathFunctionAcos(op.node);
-          break;
-        case 'atan':
-        case 'arctg':
-          el = MathFunctionAtan(op.node);
-          break;
-        case 'acot':
-        case 'arcctg':
-          el = MathFunctionAcot(op.node);
-          break;
-        default:
-          throw UnknownOperationException(item.toString());
+      if (item.str == 'log') {
+        if (op.nodeList.length == 2) {
+          el = MathFunctionLog(op.nodeList[1], x2: op.nodeList[0]);
+        } else if (op.nodeList.length == 1) {
+          el = MathFunctionLog(op.nodeList[0], x2: const MathValue(10));
+        } else {
+          throw OutOfRangeFunctionArgumentListException(item.toString());
+        }
+      } else {
+        if (op.nodeList.length != 1) {
+          throw OutOfRangeFunctionArgumentListException(item.toString());
+        }
+
+        switch (item.str) {
+          case 'sin':
+            el = MathFunctionSin(op.nodeList[0]);
+            break;
+          case 'cos':
+            el = MathFunctionCos(op.nodeList[0]);
+            break;
+          case 'tan':
+          case 'tg':
+            el = MathFunctionTan(op.nodeList[0]);
+            break;
+          case 'cot':
+          case 'ctg':
+            el = MathFunctionCot(op.nodeList[0]);
+            break;
+          case 'sqrt':
+          case '√':
+            el = MathOperatorPower(op.nodeList[0], const MathValue(1 / 2));
+            break;
+          case 'ln':
+            el = MathFunctionLn(op.nodeList[0]);
+            break;
+          case 'lg':
+            el = MathFunctionLog(op.nodeList[0], x2: const MathValue(2));
+            break;
+          case 'asin':
+          case 'arcsin':
+            el = MathFunctionAsin(op.nodeList[0]);
+            break;
+          case 'acos':
+          case 'arccos':
+            el = MathFunctionAcos(op.nodeList[0]);
+            break;
+          case 'atan':
+          case 'arctg':
+            el = MathFunctionAtan(op.nodeList[0]);
+            break;
+          case 'acot':
+          case 'arcctg':
+            el = MathFunctionAcot(op.nodeList[0]);
+            break;
+          default:
+            throw UnknownOperationException(item.toString());
+        }
       }
 
       nodes.removeAt(i);
@@ -507,6 +640,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -541,6 +675,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -550,6 +685,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -633,6 +769,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -642,6 +779,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -692,6 +830,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -701,6 +840,7 @@ MathNode _parseMathString(
           isMinusNegativeFunction: isMinusNegativeFunction,
           isImplicitMultiplication: isImplicitMultiplication,
           variableNames: variableNames,
+          customFunctions: customFunctions,
           regexp: regexp,
         ));
       }
@@ -770,23 +910,12 @@ class _UnprocessedBrackets implements _UnprocessedMathString {
   }
 }
 
-class _UnprocessedSquareBrackets implements _UnprocessedBrackets {
-  @override
-  final String contents;
-
-  const _UnprocessedSquareBrackets(this.contents);
-
-  @override
-  String toString() {
-    return 'SQBRACKETS[$contents]';
-  }
-}
-
 abstract class _MathNodePart {
   final String? str;
   final MathNode? node;
+  final List<MathNode>? nodeList;
 
-  _MathNodePart(this.str, this.node);
+  _MathNodePart(this.str, this.node, this.nodeList);
 }
 
 class _MathNodePartString implements _MathNodePart {
@@ -794,6 +923,8 @@ class _MathNodePartString implements _MathNodePart {
   final String str;
   @override
   final MathNode? node = null;
+  @override
+  final List<MathNode>? nodeList = null;
 
   const _MathNodePartString(this.str);
 
@@ -806,11 +937,27 @@ class _MathNodePartParsed implements _MathNodePart {
   final String? str = null;
   @override
   final MathNode node;
+  @override
+  final List<MathNode>? nodeList = null;
 
   const _MathNodePartParsed(this.node);
 
   @override
   String toString() => node.toString();
+}
+
+class _MathNodePartParsedList implements _MathNodePart {
+  @override
+  final String? str = null;
+  @override
+  final MathNode? node = null;
+  @override
+  final List<MathNode> nodeList;
+
+  const _MathNodePartParsedList(this.nodeList);
+
+  @override
+  String toString() => 'ARG_LIST[${nodeList.toString()}]';
 }
 
 abstract class _MathExpressionPart {
@@ -842,4 +989,19 @@ class _MathExpressionPartParsed implements _MathExpressionPart {
 
   @override
   String toString() => node.toString();
+}
+
+class _MathExpressionDefinable {
+  final Set<String> variables;
+  final Set<String> functions;
+
+  const _MathExpressionDefinable(
+    this.variables,
+    this.functions,
+  );
+
+  @override
+  String toString() {
+    return 'DEFINABLE[vars: $variables; funcs: $functions]';
+  }
 }

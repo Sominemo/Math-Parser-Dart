@@ -8,6 +8,23 @@ parts of equations and other forms of simple math
 expressions in your projects. This package supports custom
 variables too.
 
+## Features: In Short
+For more details about these features, refer to documentation, 
+this readme or example file. All public API elements are 
+documented.
+
+- Parse mathematical expressions using 
+  `MathNodeExpression.fromString` or equations using 
+  `MathNodeExpression.fromStringExtended`.
+- Define custom variables and functions by passing 
+  `variableNames` and `customFunctions` parameters. To define
+  a custom function, you'll have to implement the 
+  `MathDefinitionFunctionFreeformImplemented` interface for 
+  each such function.
+- Automatically detect possible variable and function names used in 
+  an expression, but this works reliably only with implicit 
+  multiplication off.
+
 ## Math Tree
 
 The library provides a family of `MathExpression` and

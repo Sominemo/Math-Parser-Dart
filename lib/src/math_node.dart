@@ -987,6 +987,7 @@ class MathCustomFunctions {
 /// [MathDefinitionFunctionFreeformImplemented] in `fromString`, you won't need
 /// to declare the implementation when parsing.
 class MathCustomFunctionsImplemented implements MathCustomFunctions {
+  /// Expected function definitions
   @override
   final Set<MathDefinitionFunctionFreeformImplemented> definitions;
 

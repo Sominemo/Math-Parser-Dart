@@ -122,21 +122,22 @@ refer to example for this.
 ### Detect used variable names
 
 You can detect possible variable names used in a string math expression
-using `MathNodeExpression.getPotentialVariableNames`.
+using `MathNodeExpression.getPotentialDefinable`.
 
 Detecting variable names works properly only when implicit multiplication
 is disabled.
 
 ```dart
 final expr = '2*a+b';
-final vars = MathNodeExpression.getPotentialVariableNames(
+
+final definable = MathNodeExpression.getPotentialDefinable(
   expr,
   hideBuiltIns: true,
 );
 
 MathNodeExpression.fromString(
   expr,
-  variableNames: vars,
+  variableNames: definable.variables,
   isImplicitMultiplication: false,
 );
 ```

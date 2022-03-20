@@ -50,7 +50,7 @@ abstract class MathExpression {
   /// [MathNode.calc] result. For [MathComparisonEquation], a value of subnodes is
   /// being returned but only if they equal, else null will be returned.
   /// For [MathComparisonGreater] and [MathComparisonLess] returns a greater or a
-  /// smaller value accordingly even if the expression isn't true.
+  /// smaller value accordingly only if the expression is true.
   num? calc(
     MathVariableValues values, {
     MathCustomFunctionsImplemented customFunctions,
@@ -846,7 +846,43 @@ class MathComparisonGreater extends MathComparison {
       : super(left, right);
 }
 
-/// If Greater Comparison
+/// If Greater or Equals Comparison
+///
+/// Looks for a bigger MathExpression
+class MathComparisonGreaterOrEquals extends MathComparison {
+  @override
+  num? calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) {
+    final leftResult = left.calc(
+      values,
+      customFunctions: customFunctions,
+    );
+    if (leftResult == null) return null;
+
+    final rightResult = right.calc(
+      values,
+      customFunctions: customFunctions,
+    );
+    if (rightResult == null) return null;
+
+    if (leftResult >= rightResult) return leftResult;
+    return rightResult;
+  }
+
+  @override
+  String toString() {
+    return '[$left >= $right]';
+  }
+
+  /// Creates a greater or equals comparison
+  const MathComparisonGreaterOrEquals(MathExpression left, MathExpression right)
+      : super(left, right);
+}
+
+/// If Less Comparison
 ///
 /// Looks for a bigger MathExpression
 class MathComparisonLess extends MathComparison {
@@ -879,6 +915,42 @@ class MathComparisonLess extends MathComparison {
 
   /// Creates a less comparison
   const MathComparisonLess(MathExpression left, MathExpression right)
+      : super(left, right);
+}
+
+/// If Less or Equals Comparison
+///
+/// Looks for a bigger MathExpression
+class MathComparisonLessOrEquals extends MathComparison {
+  @override
+  num? calc(
+    MathVariableValues values, {
+    MathCustomFunctionsImplemented customFunctions =
+        const MathCustomFunctionsImplemented({}),
+  }) {
+    final leftResult = left.calc(
+      values,
+      customFunctions: customFunctions,
+    );
+    if (leftResult == null) return null;
+
+    final rightResult = right.calc(
+      values,
+      customFunctions: customFunctions,
+    );
+    if (rightResult == null) return null;
+
+    if (leftResult <= rightResult) return leftResult;
+    return rightResult;
+  }
+
+  @override
+  String toString() {
+    return '[$left <= $right]';
+  }
+
+  /// Creates a less comparison
+  const MathComparisonLessOrEquals(MathExpression left, MathExpression right)
       : super(left, right);
 }
 

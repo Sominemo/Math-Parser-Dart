@@ -1,3 +1,13 @@
+# 1.5.0
+
+## Breaking changes
+
+- Now the `'` symbol is allowed for variable and function names so you can have variables like `y'`.
+
+## Equations
+
+- Implemented `>=` and `<=`.
+
 # 1.4.0
 
 ## Custom Functions
@@ -12,7 +22,7 @@
 - Detect custom functions im math tree using
   `MathExpression.getUsedFreeformFunctions()`.
 
-## Breaking changes
+## Breaking Changes
 
 - `MissingFunctionArgumentListException` renamed to
   `OutOfRangeFunctionArgumentListException`

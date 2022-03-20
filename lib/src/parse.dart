@@ -130,7 +130,7 @@ extension MathNodeExpression on MathExpression {
     final nodes = <_MathExpressionPart>[];
 
     int start = 0;
-    for (final match in RegExp('[=<>]').allMatches(expression, 0)) {
+    for (final match in RegExp('(<=|>=|=|<|>)').allMatches(expression, 0)) {
       var r = expression.substring(start, match.start);
       if (r.isNotEmpty) nodes.add(_MathExpressionPartString(r));
       r = match[0]!;
@@ -146,7 +146,7 @@ extension MathNodeExpression on MathExpression {
     for (var i = 0; i < nodes.length; i++) {
       final token = nodes[i];
       if (token is! _MathExpressionPartString ||
-          !RegExp(r'^[=<>]$').hasMatch(token.str)) continue;
+          !RegExp(r'^(<=|>=|=|<|>)$').hasMatch(token.str)) continue;
 
       if (i == 0 || i == nodes.length - 1) {
         throw MissingOperatorOperandException(token.str);
@@ -196,7 +196,12 @@ extension MathNodeExpression on MathExpression {
 
       late final MathExpression result;
 
-      if (token.str == '=') {
+      if (token.str == '>=') {
+        result =
+            MathComparisonGreaterOrEquals(leftParsed.node, rightParsed.node);
+      } else if (token.str == '<=') {
+        result = MathComparisonLessOrEquals(leftParsed.node, rightParsed.node);
+      } else if (token.str == '=') {
         result = MathComparisonEquation(leftParsed.node, rightParsed.node);
       } else if (token.str == '>') {
         result = MathComparisonGreater(leftParsed.node, rightParsed.node);
@@ -326,7 +331,7 @@ const _bracketFuncs = {
 };
 
 final _variableNameBaseRegExp =
-    '[a-zA-Zα-ωΑ-Ω_]([a-zA-Zα-ωΑ-Ω0-9_.]+(?<=[a-zA-Zα-ωΑ-Ω0-9_]))?';
+    "[a-zA-Zα-ωΑ-Ω_]([a-zA-Zα-ωΑ-Ω0-9_.']+(?<=[a-zA-Zα-ωΑ-Ω0-9_']))?";
 
 bool _validateVariableName(String name, {bool isFunction = false}) {
   return (RegExp('^$_variableNameBaseRegExp\$').hasMatch(name)) &&
@@ -555,7 +560,7 @@ MathNode _parseMathString(
     }
 
     if (doesBuiltInContain) {
-      if (op == null || op is! _MathNodePartParsedList) {
+      if (op == null) {
         throw OutOfRangeFunctionArgumentListException(cf.toString());
       }
 

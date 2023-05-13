@@ -50,7 +50,6 @@ extension MathNodeExpression on MathExpression {
   static MathNode fromString(
     /// The expression to convert
     String expression, {
-
     /// Converts all X - Y to X + (-Y)
     bool isMinusNegativeFunction = false,
 
@@ -113,7 +112,6 @@ extension MathNodeExpression on MathExpression {
   static MathExpression fromStringExtended(
     /// The expression to convert
     String expression, {
-
     /// Converts all X - Y to X + (-Y)
     bool isMinusNegativeFunction = false,
 
@@ -247,7 +245,9 @@ extension MathNodeExpression on MathExpression {
   /// `pi` from result. Can be useful if you are going to prompt user to enter the
   /// values.
   static _MathExpressionDefinable getPotentialDefinable(
+    /// The expression to convert
     String expression, {
+    /// Hide built-in variables like `e` and `pi`
     bool hideBuiltIns = false,
   }) {
     final funcs = getPotentialFunctionNames(expression, hideBuiltIns: false);
@@ -353,11 +353,14 @@ const _priority2 = {'/', '*'};
 const _priority3 = {'-', '+'};
 
 class _BracketType {
+  /// Start bracket character
   final String start;
+
+  /// End bracket character
   final String end;
 
   @override
-  bool operator ==(other) {
+  bool operator ==(Object other) {
     if (other is! _BracketType) return false;
     return start == other.start && end == other.end;
   }
@@ -894,6 +897,7 @@ MathNode _parseMathString(
 }
 
 class _UnprocessedMathString {
+  /// String that was not processed
   final String contents;
   const _UnprocessedMathString(this.contents);
 
@@ -916,8 +920,13 @@ class _UnprocessedBrackets implements _UnprocessedMathString {
 }
 
 abstract class _MathNodePart {
+  /// Contents of the part if it was not parsed
   final String? str;
+
+  /// Parsed node if it was parsed
   final MathNode? node;
+
+  /// Parsed node list if it was parsed
   final List<MathNode>? nodeList;
 
   _MathNodePart(this.str, this.node, this.nodeList);
@@ -996,8 +1005,13 @@ class _MathExpressionPartParsed implements _MathExpressionPart {
   String toString() => node.toString();
 }
 
+/// Data type that describes what variables and functions can be defined in
+/// an unparsed string
 class _MathExpressionDefinable {
+  /// Variables that can be defined
   final Set<String> variables;
+
+  /// Functions that can be defined, identified by brackets that follow them
   final Set<String> functions;
 
   const _MathExpressionDefinable(

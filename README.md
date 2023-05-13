@@ -8,24 +8,84 @@ parts of equations and other forms of simple math
 expressions in your projects. This package supports custom
 variables too.
 
+## TL;DR How to parse and calculate an expression
+
+### Predefined list of variables
+
+```dart
+import 'package:math_parser/math_parser.dart';
+
+void main() {
+  final expression = MathNodeExpression.fromString(
+  '(2x)^(e^3 + 4) + y',
+  variableNames: {'x', 'y'},
+  ).calc(
+    MathVariableValues({'x': 20, 'y': 10}),
+  );
+}
+```
+
+### Autodetect variables
+
+Implicit multiplication (writing `2x` instead of `2*x`) is not supported for auto-detecting variables.
+Trying to use auto-detection on expressions with implicit multiplication may cause a `CantProcessExpressionException` during parsing or unexpected parsing results.
+
+```dart
+import 'dart:io';
+import 'package:math_parser/math_parser.dart';
+
+void main() {
+  final stringExpression = '(2*x)^(e^3 + 4) + y';
+  print('Expression: $stringExpression');
+
+  final definable = MathNodeExpression.getPotentialDefinable(
+    stringExpression,
+    hideBuiltIns: true,
+  );
+
+  final expression = MathNodeExpression.fromString(
+    stringExpression,
+    variableNames: definable.variables,
+    isImplicitMultiplication: false,
+  );
+
+  // Ask user to define variables
+  final variableValues = <String, double>{};
+  for (final variable in definable.variables) {
+    print('Enter value for $variable:');
+    final double value = double.parse(
+      stdin.readLineSync() as String,
+    );
+    variableValues[variable] = value;
+  }
+
+  final result = expression.calc(
+    MathVariableValues(variableValues),
+  );
+
+  print('Result: $result');
+}
+```
+
 ## Features: In Short
-For more details about these features, refer to documentation, 
-this readme or example file. All public API elements are 
+
+For more details about these features, refer to documentation,
+this readme or example file. All public API elements are
 documented.
 
-- Parse mathematical expressions using 
-  `MathNodeExpression.fromString` or equations using 
-  `MathNodeExpression.fromStringExtended`.
-- Define custom variables and functions by passing 
-  `variableNames` and `customFunctions` parameters. To define
-  a custom function, you'll have to implement the 
-  `MathDefinitionFunctionFreeformImplemented` interface for 
-  each such function.
-- Automatically detect possible variable and function names used in 
-  an expression, but this works reliably only with implicit 
-  multiplication off.
+-   Parse mathematical expressions using
+    `MathNodeExpression.fromString` or equations using
+    `MathNodeExpression.fromStringExtended`.
+-   Define custom variables and functions by passing
+    `variableNames` and `customFunctions` parameters. To define
+    a custom function, you'll have to implement the
+    `MathDefinitionFunctionFreeformImplemented` interface for
+    each such function.
+-   Automatically detect possible variable and function names used in
+    an expression, but this works reliably only with implicit
+    multiplication off.
 
-## Math Tree
+## Advanced use: Math Tree
 
 The library provides a family of `MathExpression` and
 `MathNode` classes, most of them have subnodes that are being
@@ -33,13 +93,13 @@ calculated recursively.
 
 There are such types of MathNode:
 
-- `MathFunction` (and `MathFunctionWithTwoArguments` subclass)
-- `MathValue`
-- `MathOperator`
+-   `MathFunction` (and `MathFunctionWithTwoArguments` subclass)
+-   `MathValue`
+-   `MathOperator`
 
 Types of `MathExpression`:
 
-- `MathComparison`
+-   `MathComparison`
 
 All the child classes names begin with the family they belong to.
 
@@ -90,11 +150,11 @@ you don't need to redeclare the function in `MathExpression.calc`.
    functions have the same requirements, except they can override built-in
    functions.
 3. Functions (case-sensitive):
-   - Custom functions
-   - sin, cos, tan (tg), cot (ctg)
-   - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
-   - ln (base=E), lg (base=2), log\[base\]\(x\)
-   - asin (arcsin), acos (arccos), atan (arctg), acot (arcctg)
+    - Custom functions
+    - sin, cos, tan (tg), cot (ctg)
+    - sqrt (√) (interpreted as power of 1/2), complex numbers not supported
+    - ln (base=E), lg (base=2), log\[base\]\(x\)
+    - asin (arcsin), acos (arccos), atan (arctg), acot (arcctg)
 4. Unary minus (-) at the beginning of a block
 5. Power (x^y)
 6. Implicit multiplication (two MathNodes put near without operator between)
